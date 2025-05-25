@@ -22,17 +22,33 @@
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-## Description
+# Caro Online Server
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Server backend cho game Caro Online được xây dựng với NestJS framework.
 
-## Installation
+## Mô tả
+
+Caro Online là một game cờ caro trực tuyến cho phép người chơi tạo phòng và chơi với nhau. Server cung cấp các API để:
+
+- Xác thực người dùng (guest users)
+- Quản lý phòng chơi
+- Xử lý logic game cờ caro
+
+## Cài đặt
 
 ```bash
 $ yarn install
 ```
 
-## Running the app
+## Cấu hình
+
+Sao chép file `.env.example` thành `.env` và cấu hình các biến môi trường:
+
+```bash
+$ cp .env.example .env
+```
+
+## Chạy ứng dụng
 
 ```bash
 # development
@@ -43,9 +59,57 @@ $ yarn run start:dev
 
 # production mode
 $ yarn run start:prod
+
+# development với thông báo Swagger
+$ yarn run start:swagger
 ```
 
-## Test
+## API Documentation (Swagger)
+
+Sau khi khởi động server, truy cập Swagger UI tại:
+
+```
+http://localhost:3000/api/docs
+```
+
+### Tính năng Swagger:
+- **Interactive API Testing**: Test trực tiếp các endpoint
+- **Global JWT Authentication**: JWT auth tự động áp dụng cho tất cả endpoints
+- **One-click Authorization**: Authorize một lần cho toàn bộ session
+- **Request/Response Examples**: Ví dụ chi tiết cho mọi endpoint
+- **Validation Documentation**: Mô tả các rule validation
+- **Auto Security Indicators**: Lock icon cho protected endpoints
+
+Xem thêm chi tiết tại [docs/SWAGGER.md](docs/SWAGGER.md)
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/guest` - Tạo guest user và nhận JWT token (public)
+- `GET /api/auth/profile` - Lấy thông tin profile người dùng (protected)
+
+### Rooms
+- `POST /api/rooms` - Tạo phòng chơi mới (protected)
+- `POST /api/rooms/join` - Tham gia phòng chơi (protected)
+- `GET /api/rooms` - Lấy danh sách phòng chơi (protected)
+
+## Cấu trúc dự án
+
+```
+src/
+├── common/           # Shared utilities, decorators, filters
+├── config/           # Configuration modules
+├── modules/          # Feature modules
+│   ├── auth/         # Authentication module
+│   ├── user/         # User management module
+│   ├── room/         # Room management module
+│   ├── game/         # Game logic module (coming soon)
+│   └── matchmaking/  # Matchmaking module (coming soon)
+├── providers/        # Database and external service providers
+└── main.ts          # Application entry point
+```
+
+## Testing
 
 ```bash
 # unit tests
@@ -58,6 +122,25 @@ $ yarn run test:e2e
 $ yarn run test:cov
 ```
 
+## Coding Standards
+
+- **No semicolons**: Trừ import statements
+- **4 spaces indentation**: Sử dụng 4 spaces cho indentation
+- **Interface naming**: Interfaces phải có prefix `I` (ví dụ: `IResponse`)
+
+## Technology Stack
+
+- **Framework**: NestJS
+- **Database**: MySQL với TypeORM
+- **Authentication**: JWT
+- **Documentation**: Swagger/OpenAPI
+- **Validation**: class-validator
+- **Language**: TypeScript
+
+## License
+
+[MIT licensed](LICENSE).
+
 ## Support
 
 Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
@@ -67,7 +150,3 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 - Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
 - Website - [https://nestjs.com](https://nestjs.com/)
 - Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).

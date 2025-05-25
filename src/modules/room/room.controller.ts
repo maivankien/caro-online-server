@@ -1,20 +1,40 @@
-import { Controller, Post, Get, Body, UseGuards, Query } from '@nestjs/common';
 import { RoomService } from './room.service';
 import {
     CreateRoomDto,
     JoinRoomDto,
+    IRoomResponseDto,
+    IRoomListResponseDto,
+    IJoinRoomResponseDto,
 } from './dto/room.dto';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { IAuthUser } from '@modules/auth/interfaces/auth.interface';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, UseGuards, Query, HttpStatus } from '@nestjs/common';
 import { IRoomResponse, IRoomListResponse, IJoinRoomResponse } from './interfaces/room.interface';
 
+@ApiTags('Rooms')
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class RoomController {
     constructor(private readonly roomService: RoomService) { }
 
     @Post()
+    @ApiOperation({ summary: 'Create a new room' })
+    @ApiBody({ type: CreateRoomDto })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Room created successfully',
+        type: IRoomResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Bad request - Invalid input data',
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid or missing token',
+    })
     async createRoom(
         @CurrentUser() user: IAuthUser,
         @Body() createRoomDto: CreateRoomDto,
@@ -23,6 +43,25 @@ export class RoomController {
     }
 
     @Post('join')
+    @ApiOperation({ summary: 'Join an existing room' })
+    @ApiBody({ type: JoinRoomDto })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Joined room successfully',
+        type: IJoinRoomResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Bad request - Invalid room ID or password',
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid or missing token',
+    })
+    @ApiResponse({
+        status: HttpStatus.NOT_FOUND,
+        description: 'Room not found',
+    })
     async joinRoom(
         @CurrentUser() user: IAuthUser,
         @Body() joinRoomDto: JoinRoomDto,
@@ -31,6 +70,28 @@ export class RoomController {
     }
 
     @Get()
+    @ApiOperation({ summary: 'Get list of available rooms' })
+    @ApiQuery({
+        name: 'page',
+        required: false,
+        description: 'Page number',
+        example: 1,
+    })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        description: 'Number of rooms per page',
+        example: 10,
+    })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Rooms retrieved successfully',
+        type: IRoomListResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid or missing token',
+    })
     async getRooms(
         @Query('page') page: string = '1',
         @Query('limit') limit: string = '10',
