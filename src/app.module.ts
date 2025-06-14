@@ -4,6 +4,7 @@ import { AuthModule } from '@modules/auth/auth.module';
 import { RoomModule } from '@modules/room/room.module';
 import { RouterModule } from '@nestjs/core';
 import { AppConfigModule } from '@config/app/config.module';
+import { RedisProviderModule } from './providers/cache/redis/provider.module';
 import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.module';
 
 @Module({
@@ -12,6 +13,7 @@ import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.
         AuthModule,
         RoomModule,
         AppConfigModule,
+        RedisProviderModule,
         MysqlDatabaseProviderModule,
         RouterModule.register([
             {

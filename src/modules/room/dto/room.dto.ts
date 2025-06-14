@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { RoomStatusEnum } from '@/common/enums/room.enum';
 
 export class CreateRoomDto {
     @ApiProperty({
@@ -96,10 +97,10 @@ export class IRoomResponseDto {
 
     @ApiProperty({
         description: 'Room status',
-        example: 'WAITING',
-        enum: ['WAITING', 'PLAYING', 'FINISHED'],
+        example: RoomStatusEnum.WAITING,
+        enum: RoomStatusEnum,
     })
-    status: string
+    status: RoomStatusEnum
 
     @ApiProperty({
         description: 'Whether room has password',

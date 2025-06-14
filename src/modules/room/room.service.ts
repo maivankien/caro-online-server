@@ -8,7 +8,7 @@ import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '@modules/user/entities/user.entity';
 import { UserService } from '@modules/user/user.service';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RoomStatusEnum, GameResultEnum } from '@common/enums/room.enum';
 import { IRoomResponse, IRoomListResponse, IJoinRoomResponse } from './interfaces/room.interface';
 
@@ -47,7 +47,7 @@ export class RoomService {
         })
 
         if (!host) {
-            throw new NotFoundException('User not found')
+            throw new UnauthorizedException('User not found')
         }
 
         const roomData = {

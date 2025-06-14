@@ -37,17 +37,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const response = exception.getResponse();
 
         if (typeof response === 'string') {
-            return response;
+            return response
         }
 
-        if (typeof response === 'object' && response !== null) {
-            if ('message' in response) {
-                const message = (response as any).message;
-                if (Array.isArray(message)) {
-                    return message.join(', ')
-                }
-                return message;
+        if (typeof response === 'object' && response?.['message']) {
+            const message = response["message"] as string
+            if (Array.isArray(message)) {
+                return message.join(', ')
             }
+
+            return message
         }
 
         return 'An error occurred'

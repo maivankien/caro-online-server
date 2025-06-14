@@ -46,4 +46,20 @@ export class AppConfigService {
             expirationTime: string
         }>('app.jwt')
     }
+
+    get redis(): {
+        db: number
+        host: string
+        port: number
+        password: string
+        username: string
+    } {
+        return this.configService.get<{
+            db: number
+            host: string
+            port: number
+            password: string
+            username: string
+        }>('app.redis')
+    }
 }

@@ -16,4 +16,11 @@ export default registerAs('app', () => ({
         secret: process.env.JWT_SECRET,
         expirationTime: process.env.JWT_EXPIRATION_TIME,
     },
+    redis: {
+        db: process.env.REDIS_DB,
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT,
+        password: process.env.REDIS_PASSWORD,
+        username: process.env.REDIS_USERNAME,
+    }
 }))
