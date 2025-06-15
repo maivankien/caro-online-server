@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { UserModule } from '@modules/user/user.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { RoomModule } from '@modules/room/room.module';
@@ -9,6 +10,7 @@ import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.
 
 @Module({
     imports: [
+        ScheduleModule.forRoot(),
         UserModule,
         AuthModule,
         RoomModule,

@@ -24,7 +24,7 @@ export class Room {
 
     @ManyToOne(() => User)
     @JoinColumn({ name: 'host_id' })
-    host: User
+    host: Partial<User>
 
     @Column({ name: 'player_ids', type: 'json', nullable: true })
     playerIds: string[]

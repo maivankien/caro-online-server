@@ -2,41 +2,48 @@ import {
     CreateRoomDto,
     JoinRoomDto,
 } from './dto/room.dto';
+import { Redis } from 'ioredis';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '@modules/user/entities/user.entity';
 import { UserService } from '@modules/user/user.service';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { LockService } from '@/common/services/lock.service';
+import { REDIS_CLIENT } from '@/common/constants/common.constants';
 import { RoomStatusEnum, GameResultEnum } from '@common/enums/room.enum';
-import { IRoomResponse, IRoomListResponse, IJoinRoomResponse } from './interfaces/room.interface';
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { IRoomResponse, IJoinRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
+
 
 @Injectable()
 export class RoomService {
     static readonly DEFAULT_BOARD_SIZE = 15
     static readonly DEFAULT_WIN_CONDITION = 5
+    private readonly LOCK_TIME = 1000 * 60 * 10 // 10 minutes
+    private readonly ROOMS_STATUS_WAITING_KEY = 'rooms:status:waiting'
 
     constructor(
+        @Inject(REDIS_CLIENT)
+        private readonly redis: Redis,
+
+        private readonly lockService: LockService,
         private readonly userService: UserService,
 
         @InjectRepository(Room)
         private readonly roomRepository: Repository<Room>,
     ) { }
 
-    private formatRoomResponse(room: Room, host: Partial<User>): IRoomResponse {
+    private formatRoomResponse(room: Partial<IRoomFormat>): IRoomResponse {
         return {
             id: room.id,
             name: room.name,
-            host: {
-                id: host.id,
-                name: host.name
-            },
+            host: JSON.parse(room.host),
             status: room.status,
+            playerIds: JSON.parse(room.playerIds),
             hasPassword: !!room.password,
             boardSize: room.boardSize,
             winCondition: room.winCondition,
-            createdAt: room.createdAt,
+            createdAt: new Date(room.createdAt),
         }
     }
 
@@ -50,20 +57,93 @@ export class RoomService {
             throw new UnauthorizedException('User not found')
         }
 
+        const lockKey = `room-create:${hostId}`
+        const isExisted = await this.lockService.lock(lockKey, this.LOCK_TIME)
+
+        if (!isExisted) {
+            throw new BadRequestException('Failed to create room')
+        }
+
+        const roomId = uuidv4()
+        const now = new Date()
+
         const roomData = {
-            id: uuidv4(),
-            hostId,
-            playerIds: [hostId],
+            id: roomId,
+            host: JSON.stringify({
+                id: hostId,
+                name: host.name,
+            }),
+            createdAt: now.getTime(),
             name: createRoomDto.name,
             status: RoomStatusEnum.WAITING,
             gameResult: GameResultEnum.NONE,
-            password: createRoomDto.password || null,
+            playerIds: JSON.stringify([hostId]),
+            password: createRoomDto.password || '',
             boardSize: createRoomDto.boardSize || RoomService.DEFAULT_BOARD_SIZE,
             winCondition: createRoomDto.winCondition || RoomService.DEFAULT_WIN_CONDITION,
         }
 
-        const room = await this.roomRepository.save(roomData)
-        return this.formatRoomResponse(room, host)
+        await this.redis
+            .multi()
+            .hmset(`room:${roomId}`, roomData)
+            .sadd(`room:${roomId}:players`, hostId)
+            .sadd(`room:user:${hostId}`, roomId)
+            .zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
+            .exec()
+
+        return this.formatRoomResponse(roomData)
+    }
+
+    async getRooms(page: number = 1, limit: number = 10): Promise<IRoomListResponse> {
+        const start = (page - 1) * limit
+        const stop = start + limit - 1
+
+        const [roomIds, total] = await Promise.all([
+            this.redis.zrevrange(
+                this.ROOMS_STATUS_WAITING_KEY,
+                start,
+                stop
+            ),
+            this.redis.zcard(this.ROOMS_STATUS_WAITING_KEY)
+        ])
+
+        const pipeline = this.redis.pipeline()
+
+        roomIds.forEach(id =>
+            pipeline.hmget(
+                `room:${id}`,
+                'id',
+                'name',
+                'host',
+                'status',
+                'boardSize',
+                'winCondition',
+                'createdAt',
+                'password',
+                'playerIds'
+            )
+        )
+
+        const replies = await pipeline.exec()
+
+        const rooms = replies.map(([err, data]) => this.formatRoomResponse({
+            id: data[0],
+            name: data[1],
+            host: data[2],
+            status: data[3],
+            boardSize: +data[4],
+            winCondition: +data[5],
+            createdAt: +data[6],
+            password: data[7],
+            playerIds: data[8],
+        }))
+
+        return {
+            rooms,
+            total,
+            page,
+            limit,
+        }
     }
 
     async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<IJoinRoomResponse> {
@@ -82,34 +162,5 @@ export class RoomService {
             status: gameResult === GameResultEnum.NONE ? RoomStatusEnum.PLAYING : RoomStatusEnum.FINISHED,
         }
         await this.roomRepository.update(roomId, updateData)
-    }
-
-    async getRooms(page: number = 1, limit: number = 10): Promise<IRoomListResponse> {
-        const queryBuilder = this.roomRepository.createQueryBuilder('room')
-            .leftJoinAndSelect('room.host', 'host')
-            .select([
-                'room.id',
-                'room.name',
-                'room.status',
-                'room.password',
-                'room.boardSize',
-                'room.winCondition',
-                'room.createdAt',
-                'host.id',
-                'host.name'
-            ])
-            .where('room.status = :status', { status: RoomStatusEnum.WAITING })
-            .orderBy('room.createdAt', 'DESC')
-            .skip((page - 1) * limit)
-            .take(limit)
-
-        const [rooms, total] = await queryBuilder.getManyAndCount()
-
-        return {
-            rooms: rooms.map(room => this.formatRoomResponse(room, room.host)),
-            total,
-            page,
-            limit
-        }
     }
 }
