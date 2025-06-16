@@ -146,6 +146,37 @@ export class RoomService {
         }
     }
 
+    async getRoomDetail(roomId: string): Promise<IRoomResponse> {
+        const roomData = await this.redis.hmget(
+            `room:${roomId}`,
+            'id',
+            'name',
+            'host',
+            'status',
+            'boardSize',
+            'winCondition',
+            'createdAt',
+            'password',
+            'playerIds'
+        )
+
+        if (!roomData[0]) {
+            throw new BadRequestException('Room not found')
+        }
+
+        return this.formatRoomResponse({
+            id: roomData[0],
+            name: roomData[1],
+            host: roomData[2],
+            boardSize: +roomData[4],
+            winCondition: +roomData[5],
+            createdAt: +roomData[6],
+            password: roomData[7],
+            playerIds: roomData[8],
+            status: roomData[3] as RoomStatusEnum,
+        })
+    }
+
     async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<IJoinRoomResponse> {
         return
     }

@@ -12,13 +12,13 @@ export class RoomCleanupService {
     constructor(
         @Inject(REDIS_CLIENT)
         private readonly redis: Redis,
-    ) {}
+    ) { }
 
-    @Cron(CronExpression.EVERY_10_SECONDS)
+    @Cron(CronExpression.EVERY_MINUTE)
     async cleanupExpiredRooms(): Promise<void> {
         try {
             this.logger.log('Starting cleanup of expired rooms...')
-            
+
             const now = Date.now()
             const expiredTime = now - this.LOCK_TIME
 
@@ -54,20 +54,20 @@ export class RoomCleanupService {
 
             if (roomData[0]) {
                 const playerIds: string[] = JSON.parse(roomData[0])
-                
+
                 const pipeline = this.redis.pipeline()
 
                 pipeline.del(`room:${roomId}`)
                 pipeline.del(`room:${roomId}:players`)
-                
+
                 pipeline.zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)
-                
+
                 playerIds.forEach(playerId => {
                     pipeline.srem(`room:user:${playerId}`, roomId)
                 })
 
                 await pipeline.exec()
-                
+
                 this.logger.debug(`Cleaned up room ${roomId} with players: ${playerIds.join(', ')}`)
             } else {
                 await this.redis.zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)

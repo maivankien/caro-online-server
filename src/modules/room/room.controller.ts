@@ -9,8 +9,8 @@ import {
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { IAuthUser } from '@modules/auth/interfaces/auth.interface';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
-import { Controller, Post, Get, Body, UseGuards, Query, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, UseGuards, Query, HttpStatus, Param } from '@nestjs/common';
 import { IRoomResponse, IRoomListResponse, IJoinRoomResponse } from './interfaces/room.interface';
 
 @ApiTags('Rooms')
@@ -99,5 +99,29 @@ export class RoomController {
         const pageNum = parseInt(page, 10) || 1
         const limitNum = parseInt(limit, 10) || 10
         return this.roomService.getRooms(pageNum, limitNum)
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get room detail by ID' })
+    @ApiParam({
+        name: 'id',
+        description: 'Room ID',
+        example: 'uuid-room-id',
+    })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Room detail retrieved successfully',
+        type: IRoomResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Room not found',
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid or missing token',
+    })
+    async getRoomDetail(@Param('id') roomId: string): Promise<IRoomResponse> {
+        return this.roomService.getRoomDetail(roomId)
     }
 }
