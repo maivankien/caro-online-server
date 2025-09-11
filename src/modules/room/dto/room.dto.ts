@@ -13,7 +13,7 @@ export class CreateRoomDto {
 
     @ApiPropertyOptional({
         description: 'Room password (optional)',
-        example: 'room123',
+        example: null,
     })
     @IsOptional()
     @IsString()

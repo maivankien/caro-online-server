@@ -5,7 +5,9 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UserModule } from '@modules/user/user.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { WebSocketJwtStrategy } from './strategies/ws-jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { WsJwtAuthGuard } from './guards/ws-jwt-auth.guard';
 import { AppConfigModule } from '@config/app/config.module';
 import { AppConfigService } from '@config/app/config.service';
 
@@ -26,7 +28,20 @@ import { AppConfigService } from '@config/app/config.service';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy, JwtAuthGuard],
-    exports: [AuthService, JwtModule, JwtAuthGuard],
+    providers: [
+        AuthService,
+        JwtStrategy,
+        JwtAuthGuard,
+        WsJwtAuthGuard,
+        WebSocketJwtStrategy,
+    ],
+    exports: [
+        AuthService,
+        JwtModule,
+        JwtAuthGuard,
+        JwtStrategy,
+        WsJwtAuthGuard,
+        WebSocketJwtStrategy,
+    ],
 })
 export class AuthModule { }

@@ -7,12 +7,14 @@ import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserService } from '@modules/user/user.service';
 import { LockService } from '@/common/services/lock.service';
 import { REDIS_CLIENT } from '@/common/constants/common.constants';
 import { RoomStatusEnum, GameResultEnum } from '@common/enums/room.enum';
 import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { IRoomResponse, IJoinRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
+import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
+import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants';
 
 
 @Injectable()
@@ -25,6 +27,8 @@ export class RoomService {
     constructor(
         @Inject(REDIS_CLIENT)
         private readonly redis: Redis,
+
+        private readonly eventEmitter: EventEmitter2,
 
         private readonly lockService: LockService,
         private readonly userService: UserService,
@@ -87,11 +91,21 @@ export class RoomService {
             .multi()
             .hmset(`room:${roomId}`, roomData)
             .sadd(`room:${roomId}:players`, hostId)
-            .sadd(`room:user:${hostId}`, roomId)
             .zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
             .exec()
 
         return this.formatRoomResponse(roomData)
+    }
+
+    async isRoomCreatedByUser(roomId: string, userId: string): Promise<boolean> {
+        const hostData = await this.redis.hget(`room:${roomId}`, 'host')
+
+        if (!hostData) {
+            return false
+        }
+
+        const host = JSON.parse(hostData)
+        return host.id === userId
     }
 
     async getRooms(page: number = 1, limit: number = 10): Promise<IRoomListResponse> {
@@ -146,7 +160,7 @@ export class RoomService {
         }
     }
 
-    async getRoomDetail(roomId: string): Promise<IRoomResponse> {
+    async getRoomDetail(roomId: string, userId: string): Promise<IRoomResponse> {
         const roomData = await this.redis.hmget(
             `room:${roomId}`,
             'id',
@@ -164,6 +178,12 @@ export class RoomService {
             throw new BadRequestException('Room not found')
         }
 
+        const playerIds = JSON.parse(roomData[8])
+
+        if (!playerIds.includes(userId)) {
+            throw new BadRequestException('You are not a player of this room')
+        }
+
         return this.formatRoomResponse({
             id: roomData[0],
             name: roomData[1],
@@ -177,8 +197,52 @@ export class RoomService {
         })
     }
 
-    async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<IJoinRoomResponse> {
-        return
+    async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<void> {
+        const { roomId, password } = joinRoomDto
+
+        const room = await this.redis.hmget(`room:${roomId}`,
+            'id',
+            'password',
+            'status',
+            'playerIds'
+        )
+
+        if (!room[0]) {
+            throw new BadRequestException('Room not found')
+        }
+
+        if (room[2] !== RoomStatusEnum.WAITING) {
+            throw new BadRequestException('Room is not waiting')
+        }
+
+        if (room[1] && room[1] !== password) {
+            throw new BadRequestException('Invalid password')
+        }
+
+        const playerIds = JSON.parse(room[3])
+
+        if (playerIds.includes(userId)) {
+            return
+        }
+
+        if (playerIds.length >= 2) {
+            throw new BadRequestException('Room is full')
+        }
+
+        playerIds.push(userId)
+
+        await this.redis
+            .multi()
+            .hset(`room:${roomId}`, 'status', RoomStatusEnum.PLAYING)
+            .hset(`room:${roomId}`, 'playerIds', JSON.stringify(playerIds))
+            .sadd(`room:${roomId}:players`, userId)
+            .zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)
+            .exec()
+
+        await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.ROOM_JOINED, {
+            roomId,
+            userId,
+        })
     }
 
 

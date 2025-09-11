@@ -9,9 +9,9 @@ import {
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { IAuthUser } from '@modules/auth/interfaces/auth.interface';
 import { CurrentUser } from '@modules/auth/decorators/current-user.decorator';
+import { IRoomResponse, IRoomListResponse } from './interfaces/room.interface';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { Controller, Post, Get, Body, UseGuards, Query, HttpStatus, Param } from '@nestjs/common';
-import { IRoomResponse, IRoomListResponse, IJoinRoomResponse } from './interfaces/room.interface';
 
 @ApiTags('Rooms')
 @Controller()
@@ -65,8 +65,12 @@ export class RoomController {
     async joinRoom(
         @CurrentUser() user: IAuthUser,
         @Body() joinRoomDto: JoinRoomDto,
-    ): Promise<IJoinRoomResponse> {
-        return this.roomService.joinRoom(user.userId, joinRoomDto)
+    ): Promise<{ message: string }> {
+        await this.roomService.joinRoom(user.userId, joinRoomDto)
+
+        return {
+            message: 'Joined room successfully',
+        }
     }
 
     @Get()
@@ -121,7 +125,8 @@ export class RoomController {
         status: HttpStatus.UNAUTHORIZED,
         description: 'Unauthorized - Invalid or missing token',
     })
-    async getRoomDetail(@Param('id') roomId: string): Promise<IRoomResponse> {
-        return this.roomService.getRoomDetail(roomId)
+    async getRoomDetail(@Param('id') roomId: string, @CurrentUser() user: IAuthUser): Promise<IRoomResponse> {
+        const { userId } = user
+        return this.roomService.getRoomDetail(roomId, userId)
     }
 }
