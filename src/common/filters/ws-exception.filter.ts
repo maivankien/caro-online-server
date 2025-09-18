@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Socket } from 'socket.io';
 import { WsException } from '@nestjs/websockets';
+import { EVENT_SOCKET_CONSTANTS } from '../constants/event.constants';
 
 
 @Catch(WsException, BadRequestException)
@@ -16,9 +17,9 @@ export class WsExceptionsFilter implements ExceptionFilter {
 
         console.log(exception)
 
-        client.emit('error', {
-            status: 'error',
-            message: exception.message || 'WebSocket Error'
+        client.emit(EVENT_SOCKET_CONSTANTS.ERROR, {
+            event: EVENT_SOCKET_CONSTANTS.ERROR,
+            message: exception instanceof WsException ? exception.message : 'An error occurred',
         })
     }
 }

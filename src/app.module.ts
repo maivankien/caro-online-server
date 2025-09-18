@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { UserModule } from '@modules/user/user.module';
 import { AuthModule } from '@modules/auth/auth.module';
 import { RoomModule } from '@modules/room/room.module';
+import { GameModule } from '@modules/game/game.module';
 import { RouterModule } from '@nestjs/core';
 import { AppConfigModule } from '@config/app/config.module';
 import { RedisProviderModule } from './providers/cache/redis/provider.module';
@@ -14,6 +15,7 @@ import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.
         UserModule,
         AuthModule,
         RoomModule,
+        GameModule,
         AppConfigModule,
         RedisProviderModule,
         MysqlDatabaseProviderModule,

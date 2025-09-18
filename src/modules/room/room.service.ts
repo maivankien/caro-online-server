@@ -61,13 +61,6 @@ export class RoomService {
             throw new UnauthorizedException('User not found')
         }
 
-        const lockKey = `room-create:${hostId}`
-        const isExisted = await this.lockService.lock(lockKey, this.LOCK_TIME)
-
-        if (!isExisted) {
-            throw new BadRequestException('Failed to create room')
-        }
-
         const roomId = uuidv4()
         const now = new Date()
 
@@ -233,7 +226,7 @@ export class RoomService {
 
         await this.redis
             .multi()
-            .hset(`room:${roomId}`, 'status', RoomStatusEnum.PLAYING)
+            .hset(`room:${roomId}`, 'status', RoomStatusEnum.READY)
             .hset(`room:${roomId}`, 'playerIds', JSON.stringify(playerIds))
             .sadd(`room:${roomId}:players`, userId)
             .zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)
