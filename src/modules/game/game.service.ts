@@ -12,6 +12,7 @@ import {
 import { WsException } from '@nestjs/websockets'
 import { RoomRedisService } from '@modules/room/services/room-redis.service'
 import { EventEmitter2 } from '@nestjs/event-emitter'
+import { LockService } from '@common/services/lock.service'
 
 @Injectable()
 export class GameService {
@@ -22,49 +23,62 @@ export class GameService {
     constructor(
         private readonly eventEmitter: EventEmitter2,
         private readonly roomRedisService: RoomRedisService,
+        private readonly lockService: LockService,
     ) { }
 
     async setPlayerReady(roomId: string, userId: string): Promise<void> {
-        const [status, playerIdsRaw, playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, [
-            'status',
-            'playerIds',
-            'playerXId',
-            'playerOId',
-        ])
+        const lockKey = `room:${roomId}:ready`
+        const lockExpire = 5000 // 5 seconds
+        const lockTimeout = 3000 // 3 seconds timeout để acquire lock
 
-        if (status !== RoomStatusEnum.READY) {
-            throw new WsException('Room is not in ready status')
+        const lockAcquired = await this.lockService.acquireLock(lockKey, lockExpire, lockTimeout)
+        if (!lockAcquired) {
+            throw new WsException('Another player is setting ready, please try again')
         }
 
-        const playerIds = JSON.parse(playerIdsRaw || '[]')
-        if (!playerIds.includes(userId)) {
-            throw new WsException('User is not a player in this room')
-        }
+        try {
+            const [status, playerIdsRaw, playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, [
+                'status',
+                'playerIds',
+                'playerXId',
+                'playerOId',
+            ])
 
-
-        if (!playerXId || !playerOId) {
-            await this.assignPlayers(roomId, playerIds)
-        }
-
-        await this.roomRedisService.setPlayerReady(roomId, userId, true)
-
-        const readyStatus = await this.getPlayersReadyStatus(roomId)
-
-        if (readyStatus.bothReady) {
-            const gameState = await this.getGameState(roomId)
-
-            if (!gameState) {
-                setTimeout(async () => {
-                    try {
-                        const currentGameState = await this.getGameState(roomId)
-                        if (!currentGameState) {
-                            await this.startGameCountdown(roomId)
-                        }
-                    } catch (error) {
-                        console.error('Auto-start game failed:', error)
-                    }
-                }, this.DELAY_START_GAME)
+            if (status !== RoomStatusEnum.READY) {
+                throw new WsException('Room is not in ready status')
             }
+
+            const playerIds = JSON.parse(playerIdsRaw || '[]')
+            if (!playerIds.includes(userId)) {
+                throw new WsException('User is not a player in this room')
+            }
+
+            if (!playerXId || !playerOId) {
+                await this.assignPlayers(roomId, playerIds)
+            }
+
+            await this.roomRedisService.setPlayerReady(roomId, userId, true)
+
+            const readyStatus = await this.getPlayersReadyStatus(roomId)
+
+            if (readyStatus.bothReady) {
+                const gameState = await this.getGameState(roomId)
+
+                if (!gameState) {
+                    setTimeout(async () => {
+                        try {
+                            const currentGameState = await this.getGameState(roomId)
+                            if (!currentGameState) {
+                                await this.startGameCountdown(roomId)
+                            }
+                        } catch (error) {
+                            console.error('Auto-start game failed:', error)
+                        }
+                    }, this.DELAY_START_GAME)
+                }
+            }
+        } finally {
+            await this.lockService.unlock(lockKey)
         }
     }
 
