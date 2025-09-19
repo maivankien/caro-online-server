@@ -9,29 +9,34 @@ import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserService } from '@modules/user/user.service';
-import { LockService } from '@/common/services/lock.service';
-import { REDIS_CLIENT } from '@/common/constants/common.constants';
 import { RoomStatusEnum, GameResultEnum } from '@common/enums/room.enum';
-import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants';
+import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { DEFAULT_BOARD_SIZE, DEFAULT_WIN_CONDITION, REDIS_CLIENT } from '@/common/constants/common.constants';
 
 
 @Injectable()
 export class RoomService {
-    static readonly DEFAULT_BOARD_SIZE = 15
-    static readonly DEFAULT_WIN_CONDITION = 5
-    private readonly LOCK_TIME = 1000 * 60 * 10 // 10 minutes
     private readonly ROOMS_STATUS_WAITING_KEY = 'rooms:status:waiting'
+    private readonly ROOM_FIELDS = [
+        'id',
+        'name',
+        'host',
+        'status',
+        'boardSize',
+        'winCondition',
+        'createdAt',
+        'password',
+        'playerIds',
+    ]
 
     constructor(
         @Inject(REDIS_CLIENT)
         private readonly redis: Redis,
 
-        private readonly eventEmitter: EventEmitter2,
-
-        private readonly lockService: LockService,
         private readonly userService: UserService,
+        private readonly eventEmitter: EventEmitter2,
 
         @InjectRepository(Room)
         private readonly roomRepository: Repository<Room>,
@@ -76,8 +81,8 @@ export class RoomService {
             gameResult: GameResultEnum.NONE,
             playerIds: JSON.stringify([hostId]),
             password: createRoomDto.password || '',
-            boardSize: createRoomDto.boardSize || RoomService.DEFAULT_BOARD_SIZE,
-            winCondition: createRoomDto.winCondition || RoomService.DEFAULT_WIN_CONDITION,
+            boardSize: createRoomDto.boardSize || DEFAULT_BOARD_SIZE,
+            winCondition: createRoomDto.winCondition || DEFAULT_WIN_CONDITION,
         }
 
         await this.redis
@@ -101,6 +106,32 @@ export class RoomService {
         return host.id === userId
     }
 
+    formatRoomData(
+        [
+            id,
+            name,
+            host,
+            status,
+            boardSize,
+            winCondition,
+            createdAt,
+            password,
+            playerIds
+        ]
+    ): IRoomFormat {
+        return {
+            id,
+            name,
+            host,
+            status,
+            password,
+            playerIds,
+            boardSize: +boardSize,
+            createdAt: +createdAt,
+            winCondition: +winCondition,
+        }
+    }
+
     async getRooms(page: number = 1, limit: number = 10): Promise<IRoomListResponse> {
         const start = (page - 1) * limit
         const stop = start + limit - 1
@@ -119,31 +150,14 @@ export class RoomService {
         roomIds.forEach(id =>
             pipeline.hmget(
                 `room:${id}`,
-                'id',
-                'name',
-                'host',
-                'status',
-                'boardSize',
-                'winCondition',
-                'createdAt',
-                'password',
-                'playerIds'
+                ...this.ROOM_FIELDS
             )
         )
 
         const replies = await pipeline.exec()
-
-        const rooms = replies.map(([err, data]) => this.formatRoomResponse({
-            id: data[0],
-            name: data[1],
-            host: data[2],
-            status: data[3],
-            boardSize: +data[4],
-            winCondition: +data[5],
-            createdAt: +data[6],
-            password: data[7],
-            playerIds: data[8],
-        }))
+        const rooms = replies.map(([_, data]) =>
+            this.formatRoomResponse(this.formatRoomData(data as any))
+        )
 
         return {
             rooms,
@@ -154,65 +168,49 @@ export class RoomService {
     }
 
     async getRoomDetail(roomId: string, userId: string): Promise<IRoomResponse> {
-        const roomData = await this.redis.hmget(
+        const rawData = await this.redis.hmget(
             `room:${roomId}`,
-            'id',
-            'name',
-            'host',
-            'status',
-            'boardSize',
-            'winCondition',
-            'createdAt',
-            'password',
-            'playerIds'
-        )
+            ...this.ROOM_FIELDS
+        ) as any
 
-        if (!roomData[0]) {
+        const roomData = this.formatRoomData(rawData)
+
+        if (!roomData?.id) {
             throw new BadRequestException('Room not found')
         }
 
-        const playerIds = JSON.parse(roomData[8])
+        const playerIds = JSON.parse(roomData.playerIds)
 
         if (!playerIds.includes(userId)) {
             throw new BadRequestException('You are not a player of this room')
         }
 
-        return this.formatRoomResponse({
-            id: roomData[0],
-            name: roomData[1],
-            host: roomData[2],
-            boardSize: +roomData[4],
-            winCondition: +roomData[5],
-            createdAt: +roomData[6],
-            password: roomData[7],
-            playerIds: roomData[8],
-            status: roomData[3] as RoomStatusEnum,
-        })
+        return this.formatRoomResponse(roomData)
     }
 
     async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<void> {
-        const { roomId, password } = joinRoomDto
+        const { roomId, password: joinPassword } = joinRoomDto
 
-        const room = await this.redis.hmget(`room:${roomId}`,
+        const [id, password, status, playerIdsRaw] = await this.redis.hmget(`room:${roomId}`,
             'id',
             'password',
             'status',
             'playerIds'
         )
 
-        if (!room[0]) {
+        if (!id) {
             throw new BadRequestException('Room not found')
         }
 
-        if (room[2] !== RoomStatusEnum.WAITING) {
+        if (status !== RoomStatusEnum.WAITING) {
             throw new BadRequestException('Room is not waiting')
         }
 
-        if (room[1] && room[1] !== password) {
+        if (password && password !== joinPassword) {
             throw new BadRequestException('Invalid password')
         }
 
-        const playerIds = JSON.parse(room[3])
+        const playerIds = JSON.parse(playerIdsRaw)
 
         if (playerIds.includes(userId)) {
             return
@@ -236,19 +234,5 @@ export class RoomService {
             roomId,
             userId,
         })
-    }
-
-
-    async updateRoomStatusEnum(roomId: string, status: RoomStatusEnum): Promise<void> {
-        await this.roomRepository.update(roomId, { status })
-    }
-
-    async updateGameResultEnum(roomId: string, gameResult: GameResultEnum, winnerId?: string): Promise<void> {
-        const updateData: Partial<Room> = {
-            gameResult,
-            winnerId: winnerId || null,
-            status: gameResult === GameResultEnum.NONE ? RoomStatusEnum.PLAYING : RoomStatusEnum.FINISHED,
-        }
-        await this.roomRepository.update(roomId, updateData)
     }
 }

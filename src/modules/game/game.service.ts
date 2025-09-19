@@ -17,8 +17,6 @@ import { WsException } from '@nestjs/websockets'
 @Injectable()
 export class GameService {
     private readonly COUNTDOWN_INTERVAL = 1000 // 1 second
-    private readonly DEFAULT_BOARD_SIZE = 15
-    private readonly DEFAULT_WIN_CONDITION = 5
     private readonly DEFAULT_COUNTDOWN = 3
     private readonly DELAY_START_GAME = 500
 
@@ -128,7 +126,7 @@ export class GameService {
         await this.redis.hset(`room:${roomId}`, 'status', RoomStatusEnum.PLAYING)
 
         const boardSizeStr = await this.redis.hget(`room:${roomId}`, 'boardSize')
-        const size = boardSizeStr ? parseInt(boardSizeStr) : this.DEFAULT_BOARD_SIZE
+        const size = parseInt(boardSizeStr)
 
         const gameState: IGameState = {
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
@@ -234,7 +232,7 @@ export class GameService {
         roomId: string
     ): Promise<{ hasWon: boolean, winningLine?: IPosition[] }> {
         const winConditionStr = await this.redis.hget(`room:${roomId}`, 'winCondition')
-        const winCondition = winConditionStr ? parseInt(winConditionStr) : this.DEFAULT_WIN_CONDITION
+        const winCondition = parseInt(winConditionStr)
 
         const { board } = gameState
         const directions = [
