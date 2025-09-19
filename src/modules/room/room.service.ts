@@ -14,6 +14,7 @@ import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants';
 import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
 import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { DEFAULT_BOARD_SIZE, DEFAULT_WIN_CONDITION, REDIS_CLIENT } from '@/common/constants/common.constants';
+import { RoomRedisService } from './services/room-redis.service';
 
 
 @Injectable()
@@ -37,6 +38,7 @@ export class RoomService {
 
         private readonly userService: UserService,
         private readonly eventEmitter: EventEmitter2,
+        private readonly roomRedisService: RoomRedisService,
 
         @InjectRepository(Room)
         private readonly roomRepository: Repository<Room>,
@@ -85,18 +87,17 @@ export class RoomService {
             winCondition: createRoomDto.winCondition || DEFAULT_WIN_CONDITION,
         }
 
-        await this.redis
-            .multi()
-            .hmset(`room:${roomId}`, roomData)
-            .sadd(`room:${roomId}:players`, hostId)
-            .zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
-            .exec()
+        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+            multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
+            multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), hostId)
+            multi.zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
+        })
 
         return this.formatRoomResponse(roomData)
     }
 
     async isRoomCreatedByUser(roomId: string, userId: string): Promise<boolean> {
-        const hostData = await this.redis.hget(`room:${roomId}`, 'host')
+        const hostData = await this.roomRedisService.getRoomField(roomId, 'host')
 
         if (!hostData) {
             return false
@@ -149,7 +150,7 @@ export class RoomService {
 
         roomIds.forEach(id =>
             pipeline.hmget(
-                `room:${id}`,
+                this.roomRedisService.getRoomKey(id),
                 ...this.ROOM_FIELDS
             )
         )
@@ -168,10 +169,7 @@ export class RoomService {
     }
 
     async getRoomDetail(roomId: string, userId: string): Promise<IRoomResponse> {
-        const rawData = await this.redis.hmget(
-            `room:${roomId}`,
-            ...this.ROOM_FIELDS
-        ) as any
+        const rawData = await this.roomRedisService.getRoomData(roomId, this.ROOM_FIELDS)
 
         const roomData = this.formatRoomData(rawData)
 
@@ -191,12 +189,12 @@ export class RoomService {
     async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<void> {
         const { roomId, password: joinPassword } = joinRoomDto
 
-        const [id, password, status, playerIdsRaw] = await this.redis.hmget(`room:${roomId}`,
+        const [id, password, status, playerIdsRaw] = await this.roomRedisService.getRoomData(roomId, [
             'id',
             'password',
             'status',
             'playerIds'
-        )
+        ])
 
         if (!id) {
             throw new BadRequestException('Room not found')
@@ -222,13 +220,12 @@ export class RoomService {
 
         playerIds.push(userId)
 
-        await this.redis
-            .multi()
-            .hset(`room:${roomId}`, 'status', RoomStatusEnum.READY)
-            .hset(`room:${roomId}`, 'playerIds', JSON.stringify(playerIds))
-            .sadd(`room:${roomId}:players`, userId)
-            .zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)
-            .exec()
+        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+            multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.READY)
+            multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerIds', JSON.stringify(playerIds))
+            multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), userId)
+            multi.zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)
+        })
 
         await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.ROOM_JOINED, {
             roomId,

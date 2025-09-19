@@ -1,7 +1,4 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common'
-import { Redis } from 'ioredis'
-import { EventEmitter2 } from '@nestjs/event-emitter'
-import { REDIS_CLIENT } from '@/common/constants/common.constants'
+import { Injectable, BadRequestException } from '@nestjs/common'
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants'
 import { RoomStatusEnum } from '@/common/enums/room.enum'
 import {
@@ -13,6 +10,8 @@ import {
     IPlayerReadyStatus
 } from './interfaces/game.interface'
 import { WsException } from '@nestjs/websockets'
+import { RoomRedisService } from '@modules/room/services/room-redis.service'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 
 @Injectable()
 export class GameService {
@@ -21,19 +20,17 @@ export class GameService {
     private readonly DELAY_START_GAME = 500
 
     constructor(
-        @Inject(REDIS_CLIENT)
-        private readonly redis: Redis,
         private readonly eventEmitter: EventEmitter2,
+        private readonly roomRedisService: RoomRedisService,
     ) { }
 
     async setPlayerReady(roomId: string, userId: string): Promise<void> {
-        const [status, playerIdsRaw, playerXId, playerOId] = await this.redis.hmget(
-            `room:${roomId}`,
+        const [status, playerIdsRaw, playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, [
             'status',
             'playerIds',
             'playerXId',
             'playerOId',
-        )
+        ])
 
         if (status !== RoomStatusEnum.READY) {
             throw new WsException('Room is not in ready status')
@@ -49,8 +46,7 @@ export class GameService {
             await this.assignPlayers(roomId, playerIds)
         }
 
-        const readyKey = `room:${roomId}:ready`
-        await this.redis.hset(readyKey, userId, true.toString())
+        await this.roomRedisService.setPlayerReady(roomId, userId, true)
 
         const readyStatus = await this.getPlayersReadyStatus(roomId)
 
@@ -73,17 +69,16 @@ export class GameService {
     }
 
     async getPlayersReadyStatus(roomId: string): Promise<IPlayerReadyStatus> {
-        const readyKey = `room:${roomId}:ready`
-        const [playerXId, playerOId] = await this.redis.hmget(`room:${roomId}`, 'playerXId', 'playerOId')
+        const [playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, ['playerXId', 'playerOId'])
 
-        const [playerXReady, playerOReady] = await this.redis.hmget(readyKey, playerXId || '', playerOId || '')
+        const readyStatus = await this.roomRedisService.getPlayersReadyStatus(roomId, playerXId || '', playerOId || '')
 
         return {
             playerXId: playerXId || '',
             playerOId: playerOId || '',
-            playerXReady: playerXReady === 'true',
-            playerOReady: playerOReady === 'true',
-            bothReady: playerXReady === 'true' && playerOReady === 'true'
+            playerXReady: readyStatus.playerXReady,
+            playerOReady: readyStatus.playerOReady,
+            bothReady: readyStatus.bothReady
         }
     }
 
@@ -115,17 +110,16 @@ export class GameService {
         const playerXId = playerIds[randomIndex]
         const playerOId = playerIds[1 - randomIndex]
 
-        await this.redis
-            .multi()
-            .hset(`room:${roomId}`, 'playerXId', playerXId)
-            .hset(`room:${roomId}`, 'playerOId', playerOId)
-            .exec()
+        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+            multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerXId', playerXId)
+            multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerOId', playerOId)
+        })
     }
 
     private async startGame(roomId: string): Promise<void> {
-        await this.redis.hset(`room:${roomId}`, 'status', RoomStatusEnum.PLAYING)
+        await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.PLAYING)
 
-        const boardSizeStr = await this.redis.hget(`room:${roomId}`, 'boardSize')
+        const boardSizeStr = await this.roomRedisService.getRoomField(roomId, 'boardSize')
         const size = parseInt(boardSizeStr)
 
         const gameState: IGameState = {
@@ -136,7 +130,7 @@ export class GameService {
             startTime: new Date().toISOString(),
         }
 
-        await this.redis.hset(`room:${roomId}`, 'gameState', JSON.stringify(gameState))
+        await this.roomRedisService.setRoomField(roomId, 'gameState', JSON.stringify(gameState))
 
         const players = await this.getRoomPlayers(roomId)
 
@@ -215,7 +209,7 @@ export class GameService {
             })
         }
 
-        await this.redis.hset(`room:${roomId}`, 'gameState', JSON.stringify(gameState))
+        await this.roomRedisService.setRoomField(roomId, 'gameState', JSON.stringify(gameState))
 
         await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_MOVE_MADE, {
             roomId,
@@ -231,7 +225,7 @@ export class GameService {
         player: 'X' | 'O',
         roomId: string
     ): Promise<{ hasWon: boolean, winningLine?: IPosition[] }> {
-        const winConditionStr = await this.redis.hget(`room:${roomId}`, 'winCondition')
+        const winConditionStr = await this.roomRedisService.getRoomField(roomId, 'winCondition')
         const winCondition = parseInt(winConditionStr)
 
         const { board } = gameState
@@ -280,12 +274,12 @@ export class GameService {
     }
 
     async getGameState(roomId: string): Promise<IGameState | null> {
-        const gameStateStr = await this.redis.hget(`room:${roomId}`, 'gameState')
+        const gameStateStr = await this.roomRedisService.getRoomField(roomId, 'gameState')
         return gameStateStr ? JSON.parse(gameStateStr) : null
     }
 
     async getRoomPlayers(roomId: string): Promise<IPlayerAssignment> {
-        const [playerXId, playerOId] = await this.redis.hmget(`room:${roomId}`, 'playerXId', 'playerOId')
+        const [playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, ['playerXId', 'playerOId'])
         return {
             playerXId: playerXId || '',
             playerOId: playerOId || '',
@@ -293,6 +287,6 @@ export class GameService {
     }
 
     async isPlayerInGame(roomId: string, userId: string): Promise<boolean> {
-        return !!(await this.redis.sismember(`room:${roomId}:players`, userId))
+        return await this.roomRedisService.isRoomPlayer(roomId, userId)
     }
 }

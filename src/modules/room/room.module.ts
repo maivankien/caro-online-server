@@ -10,6 +10,7 @@ import { AuthModule } from '@modules/auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { LockService } from '@/common/services/lock.service';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { RoomRedisService } from './services/room-redis.service';
 
 @Module({
     imports: [
@@ -22,7 +23,18 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
         ]),
     ],
     controllers: [RoomController],
-    providers: [RoomService, RoomCleanupService, RoomGateway, LockService],
-    exports: [RoomService, RoomCleanupService, RoomGateway],
+    providers: [
+        RoomService,
+        RoomCleanupService,
+        RoomGateway,
+        LockService,
+        RoomRedisService,
+    ],
+    exports: [
+        RoomService,
+        RoomCleanupService,
+        RoomGateway,
+        RoomRedisService,
+    ],
 })
 export class RoomModule { }
