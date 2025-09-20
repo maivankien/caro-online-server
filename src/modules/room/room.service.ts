@@ -221,7 +221,7 @@ export class RoomService {
         playerIds.push(userId)
 
         await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
-            multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.READY)
+            multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.WAITING_READY)
             multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerIds', JSON.stringify(playerIds))
             multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), userId)
             multi.zrem(this.ROOMS_STATUS_WAITING_KEY, roomId)

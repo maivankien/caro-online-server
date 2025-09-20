@@ -1,6 +1,6 @@
 export enum RoomStatusEnum {
     WAITING = 'waiting',           // Chờ player thứ 2 join
-    READY = 'ready',               // Cả 2 players đã join, chờ ready
+    WAITING_READY = 'waiting_ready',// Cả 2 players đã join, chờ ready
     COUNTDOWN = 'countdown',       // Đang countdown 3-2-1
     PLAYING = 'playing',           // Game đang diễn ra
     FINISHED = 'finished',         // Game kết thúc

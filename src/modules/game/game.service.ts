@@ -44,7 +44,7 @@ export class GameService {
                 'playerOId',
             ])
 
-            if (status !== RoomStatusEnum.READY) {
+            if (status !== RoomStatusEnum.WAITING_READY) {
                 throw new WsException('Room is not in ready status')
             }
 
