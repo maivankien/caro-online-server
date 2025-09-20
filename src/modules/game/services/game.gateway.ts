@@ -129,6 +129,25 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
         }
     }
 
+    @SubscribeMessage(EVENT_SOCKET_CONSTANTS.GET_GAME_STATE)
+    async handleGetGameState(
+        @ConnectedSocket() client: Socket,
+    ) {
+        try {
+            const { roomId } = client.data
+
+            const gameStateData = await this.gameService.getGameStateForPlayer(roomId)
+
+            client.emit(EVENT_SOCKET_CONSTANTS.GAME_STATE_SYNC, gameStateData)
+            
+        } catch (error) {
+            client.emit(EVENT_SOCKET_CONSTANTS.ERROR, {
+                event: EVENT_SOCKET_CONSTANTS.GET_GAME_STATE,
+                message: error instanceof WsException ? error.message : 'An error occurred',
+            })
+        }
+    }
+
 
     @OnEvent(EVENT_EMITTER_CONSTANTS.GAME_START_COUNTDOWN)
     async handleGameStartCountdown(payload: IGameCountdownPayload) {

@@ -1,16 +1,21 @@
+export type Player = 'X' | 'O' | null
+
+export type PlayerWinner = 'X' | 'O' | 'DRAW'
+
 export interface IGameState {
-    board: (string | null)[][]
-    currentPlayer: 'X' | 'O'
+    board: (Player | null)[][]
+    currentPlayer: Player
     isGameActive: boolean
     moveCount: number
     startTime: string
     lastMoveTime?: string
+    winCondition: number
 }
 
 export interface IGameMove {
     row: number
     col: number
-    player: 'X' | 'O'
+    player: Player
     timestamp: string
 }
 
@@ -33,7 +38,7 @@ export interface IGameMovePayload {
 
 export interface IGameFinishedPayload {
     roomId: string
-    winner: 'X' | 'O' | 'DRAW'
+    winner: PlayerWinner
     winningLine?: IPosition[]
     gameState: IGameState
 }
@@ -61,3 +66,10 @@ export interface IMakeMoveDto {
     col: number
 }
 
+
+export interface IGameStateSyncPayload {
+    gameState: IGameState
+    players: IPlayerAssignment
+    winner?: PlayerWinner | null
+    winningLine?: IPosition[]
+}

@@ -7,7 +7,10 @@ import {
     IPlayerAssignment,
     IMakeMoveDto,
     IPosition,
-    IPlayerReadyStatus
+    IPlayerReadyStatus,
+    IGameStateSyncPayload,
+    PlayerWinner,
+    Player
 } from './interfaces/game.interface'
 import { WsException } from '@nestjs/websockets'
 import { RoomRedisService } from '@modules/room/services/room-redis.service'
@@ -29,7 +32,7 @@ export class GameService {
     async setPlayerReady(roomId: string, userId: string): Promise<void> {
         const lockKey = `room:${roomId}:ready`
         const lockExpire = 5000 // 5 seconds
-        const lockTimeout = 3000 // 3 seconds timeout để acquire lock
+        const lockTimeout = 3000 // 3 seconds timeout to acquire lock
 
         const lockAcquired = await this.lockService.acquireLock(lockKey, lockExpire, lockTimeout)
         if (!lockAcquired) {
@@ -45,7 +48,7 @@ export class GameService {
             ])
 
             if (status !== RoomStatusEnum.WAITING_READY) {
-                throw new WsException('Room is not in ready status')
+                throw new WsException('Room is not in waiting ready status')
             }
 
             const playerIds = JSON.parse(playerIdsRaw || '[]')
@@ -133,14 +136,16 @@ export class GameService {
     private async startGame(roomId: string): Promise<void> {
         await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.PLAYING)
 
-        const boardSizeStr = await this.roomRedisService.getRoomField(roomId, 'boardSize')
-        const size = parseInt(boardSizeStr)
+        const [boardSizeStr, winConditionStr] = await this.roomRedisService.getRoomData(roomId, ['boardSize', 'winCondition'])
+        const size = +boardSizeStr
+        const winCondition = +winConditionStr
 
         const gameState: IGameState = {
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
             currentPlayer: 'X',
             isGameActive: true,
             moveCount: 0,
+            winCondition,
             startTime: new Date().toISOString(),
         }
 
@@ -169,7 +174,7 @@ export class GameService {
 
         const players = await this.getRoomPlayers(roomId)
 
-        let playerSymbol: 'X' | 'O'
+        let playerSymbol: Player
         if (userId === players.playerXId) {
             playerSymbol = 'X'
         } else if (userId === players.playerOId) {
@@ -202,7 +207,7 @@ export class GameService {
             timestamp: gameState.lastMoveTime,
         }
 
-        const winResult = await this.checkWinCondition(gameState, row, col, playerSymbol, roomId)
+        const winResult = this.checkWinCondition(gameState, row, col, playerSymbol)
 
         if (winResult.hasWon) {
             gameState.isGameActive = false
@@ -232,17 +237,62 @@ export class GameService {
         })
     }
 
-    private async checkWinCondition(
+    async getGameStateForPlayer(roomId: string): Promise<IGameStateSyncPayload> {
+        const gameState = await this.getGameState(roomId)
+
+        if (!gameState) {
+            throw new WsException('Game not found or not started')
+        }
+
+        const players = await this.getRoomPlayers(roomId)
+        const gameResult = this.determineGameResult(gameState)
+
+        return {
+            gameState,
+            players,
+            winner: gameResult.winner,
+            winningLine: gameResult.winningLine
+        }
+    }
+
+    private determineGameResult(gameState: IGameState): { winner: PlayerWinner | null, winningLine?: IPosition[] } {
+        if (gameState.isGameActive) {
+            return { winner: null }
+        }
+
+        const { board } = gameState
+        const boardSize = board.length
+
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                const player = board[row][col]
+                if (player) {
+                    const winResult = this.checkWinCondition(gameState, row, col, player)
+
+                    if (winResult.hasWon) {
+                        return {
+                            winner: player,
+                            winningLine: winResult.winningLine
+                        }
+                    }
+                }
+            }
+        }
+
+        if (gameState.moveCount === boardSize * boardSize) {
+            return { winner: 'DRAW' }
+        }
+
+        return { winner: null }
+    }
+
+    private checkWinCondition(
         gameState: IGameState,
         row: number,
         col: number,
-        player: 'X' | 'O',
-        roomId: string
-    ): Promise<{ hasWon: boolean, winningLine?: IPosition[] }> {
-        const winConditionStr = await this.roomRedisService.getRoomField(roomId, 'winCondition')
-        const winCondition = parseInt(winConditionStr)
-
-        const { board } = gameState
+        player: Player,
+    ): { hasWon: boolean, winningLine?: IPosition[] } {
+        const { board, winCondition } = gameState
         const directions = [
             [0, 1],   // horizontal
             [1, 0],   // vertical
