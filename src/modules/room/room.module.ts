@@ -11,6 +11,7 @@ import { UserModule } from '../user/user.module';
 import { LockService } from '@/common/services/lock.service';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RoomRedisService } from './services/room-redis.service';
+import { RoomAuthMiddleware } from './middleware/room-auth.middleware';
 
 @Module({
     imports: [
@@ -29,6 +30,7 @@ import { RoomRedisService } from './services/room-redis.service';
         RoomGateway,
         LockService,
         RoomRedisService,
+        RoomAuthMiddleware,
     ],
     exports: [
         RoomService,
