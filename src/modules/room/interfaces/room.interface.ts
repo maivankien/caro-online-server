@@ -1,4 +1,4 @@
-import { RoomStatusEnum } from "@common/enums/room.enum"
+import { RoomStatusEnum } from "@/common/enums/common.enum"
 
 export interface IRoomResponse {
     id: string

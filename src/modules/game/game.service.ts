@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants'
-import { RoomStatusEnum } from '@/common/enums/room.enum'
+import { PlayerEnum, PlayerWinnerEnum, RoomStatusEnum } from '@/common/enums/common.enum'
 import {
     IGameState,
     IGameMove,
@@ -9,8 +9,6 @@ import {
     IPosition,
     IPlayerReadyStatus,
     IGameStateSyncPayload,
-    PlayerWinner,
-    Player
 } from './interfaces/game.interface'
 import { WsException } from '@nestjs/websockets'
 import { RoomRedisService } from '@modules/room/services/room-redis.service'
@@ -22,6 +20,7 @@ export class GameService {
     private readonly COUNTDOWN_INTERVAL = 1000 // 1 second
     private readonly DEFAULT_COUNTDOWN = 3
     private readonly DELAY_START_GAME = 500
+    private readonly DEFAULT_START_PLAYER = PlayerEnum.X
 
     constructor(
         private readonly eventEmitter: EventEmitter2,
@@ -142,10 +141,10 @@ export class GameService {
 
         const gameState: IGameState = {
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
-            currentPlayer: 'X',
             isGameActive: true,
             moveCount: 0,
             winCondition,
+            currentPlayer: this.DEFAULT_START_PLAYER,
             startTime: new Date().toISOString(),
         }
 
@@ -174,11 +173,11 @@ export class GameService {
 
         const players = await this.getRoomPlayers(roomId)
 
-        let playerSymbol: Player
+        let playerSymbol: PlayerEnum
         if (userId === players.playerXId) {
-            playerSymbol = 'X'
+            playerSymbol = PlayerEnum.X
         } else if (userId === players.playerOId) {
-            playerSymbol = 'O'
+            playerSymbol = PlayerEnum.O
         } else {
             throw new BadRequestException('User is not a player in this game')
         }
@@ -198,7 +197,7 @@ export class GameService {
         gameState.moveCount++
         gameState.board[row][col] = playerSymbol
         gameState.lastMoveTime = new Date().toISOString()
-        gameState.currentPlayer = playerSymbol === 'X' ? 'O' : 'X'
+        gameState.currentPlayer = playerSymbol === PlayerEnum.X ? PlayerEnum.O : PlayerEnum.X
 
         const move: IGameMove = {
             row,
@@ -255,7 +254,15 @@ export class GameService {
         }
     }
 
-    private determineGameResult(gameState: IGameState): { winner: PlayerWinner | null, winningLine?: IPosition[] } {
+    private getPlayerWinner(player: PlayerEnum): PlayerWinnerEnum {
+        if (player === PlayerEnum.X) {
+            return PlayerWinnerEnum.X
+        } else if (player === PlayerEnum.O) {
+            return PlayerWinnerEnum.O
+        }
+    }
+
+    private determineGameResult(gameState: IGameState): { winner?: PlayerWinnerEnum | null, winningLine?: IPosition[] } {
         if (gameState.isGameActive) {
             return { winner: null }
         }
@@ -271,7 +278,7 @@ export class GameService {
 
                     if (winResult.hasWon) {
                         return {
-                            winner: player,
+                            winner: this.getPlayerWinner(player),
                             winningLine: winResult.winningLine
                         }
                     }
@@ -280,7 +287,7 @@ export class GameService {
         }
 
         if (gameState.moveCount === boardSize * boardSize) {
-            return { winner: 'DRAW' }
+            return { winner: PlayerWinnerEnum.DRAW }
         }
 
         return { winner: null }
@@ -290,7 +297,7 @@ export class GameService {
         gameState: IGameState,
         row: number,
         col: number,
-        player: Player,
+        player: PlayerEnum,
     ): { hasWon: boolean, winningLine?: IPosition[] } {
         const { board, winCondition } = gameState
         const directions = [

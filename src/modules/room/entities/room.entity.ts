@@ -8,7 +8,7 @@ import {
     JoinColumn,
 } from 'typeorm';
 import { User } from '@modules/user/entities/user.entity';
-import { RoomStatusEnum, GameResultEnum } from '@common/enums/room.enum';
+import { RoomStatusEnum, GameResultEnum } from '@/common/enums/common.enum';
 
 
 @Entity('rooms')

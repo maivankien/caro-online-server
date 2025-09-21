@@ -12,3 +12,14 @@ export enum GameResultEnum {
     PLAYER_O_WIN = 'player_o_win',
     DRAW = 'draw',
 }
+
+export enum PlayerWinnerEnum {
+    X = 'X',
+    O = 'O',
+    DRAW = 'DRAW',
+}
+
+export enum PlayerEnum {
+    X = 'X',
+    O = 'O',
+}

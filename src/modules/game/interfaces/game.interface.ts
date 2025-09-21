@@ -1,10 +1,9 @@
-export type Player = 'X' | 'O' | null
+import { PlayerEnum, PlayerWinnerEnum } from "@/common/enums/common.enum"
 
-export type PlayerWinner = 'X' | 'O' | 'DRAW'
 
 export interface IGameState {
-    board: (Player | null)[][]
-    currentPlayer: Player
+    board: (PlayerEnum | null)[][]
+    currentPlayer: PlayerEnum
     isGameActive: boolean
     moveCount: number
     startTime: string
@@ -15,7 +14,7 @@ export interface IGameState {
 export interface IGameMove {
     row: number
     col: number
-    player: Player
+    player: PlayerEnum
     timestamp: string
 }
 
@@ -38,7 +37,7 @@ export interface IGameMovePayload {
 
 export interface IGameFinishedPayload {
     roomId: string
-    winner: PlayerWinner
+    winner: PlayerWinnerEnum
     winningLine?: IPosition[]
     gameState: IGameState
 }
@@ -70,6 +69,6 @@ export interface IMakeMoveDto {
 export interface IGameStateSyncPayload {
     gameState: IGameState
     players: IPlayerAssignment
-    winner?: PlayerWinner | null
+    winner?: PlayerWinnerEnum | null
     winningLine?: IPosition[]
 }

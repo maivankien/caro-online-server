@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { RoomStatusEnum } from '@/common/enums/room.enum';
+import { RoomStatusEnum } from '@/common/enums/common.enum';
 
 export class CreateRoomDto {
     @ApiProperty({
