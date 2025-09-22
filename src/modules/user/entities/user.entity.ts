@@ -5,7 +5,6 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
 } from 'typeorm';
-import { DEFAULT_ELO } from '@/common/constants/common.constants';
 
 @Entity('users')
 export class User {
@@ -24,7 +23,7 @@ export class User {
     @Column({ name: 'is_guest', type: 'tinyint', default: 1 })
     isGuest: number;
 
-    @Column({ type: 'smallint', default: DEFAULT_ELO })
+    @Column({ type: 'smallint' })
     elo: number;
 
     @CreateDateColumn({ name: 'created_at', type: 'datetime' })

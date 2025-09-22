@@ -5,6 +5,7 @@ import { CreateUserGuestDto } from './dto/user.dto';
 import { User } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserTypeEnum } from './enums/user.enum';
+import { DEFAULT_ELO } from '@/common/constants/common.constants';
 
 @Injectable()
 export class UserService {
@@ -17,6 +18,7 @@ export class UserService {
         const userData = {
             id: uuidv4(),
             name: user.name,
+            elo: DEFAULT_ELO,
             isGuest: UserTypeEnum.GUEST,
         }
 
