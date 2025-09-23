@@ -8,6 +8,8 @@ import { RouterModule } from '@nestjs/core';
 import { AppConfigModule } from '@config/app/config.module';
 import { RedisProviderModule } from './providers/cache/redis/provider.module';
 import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.module';
+import { BullMQProviderModule } from './providers/queue/bullmq.module';
+import { GameQueueModule } from '@modules/game-queue/game-queue.module';
 
 @Module({
     imports: [
@@ -18,6 +20,8 @@ import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.
         GameModule,
         AppConfigModule,
         RedisProviderModule,
+        BullMQProviderModule,
+        GameQueueModule,
         MysqlDatabaseProviderModule,
         RouterModule.register([
             {
