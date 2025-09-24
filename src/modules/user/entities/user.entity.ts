@@ -26,6 +26,15 @@ export class User {
     @Column({ type: 'smallint' })
     elo: number;
 
+    @Column({ name: 'total_games', type: 'int', default: 0 })
+    totalGames: number;
+
+    @Column({ name: 'wins', type: 'int', default: 0 })
+    wins: number;
+
+    @Column({ name: 'losses', type: 'int', default: 0 })
+    losses: number;
+
     @CreateDateColumn({ name: 'created_at', type: 'datetime' })
     createdAt: Date;
 

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { FindOptionsSelect, Repository } from 'typeorm';
+import { FindOptionsSelect, In, ObjectLiteral, Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { CreateUserGuestDto } from './dto/user.dto';
 import { User } from './entities/user.entity';
@@ -19,6 +19,9 @@ export class UserService {
             id: uuidv4(),
             name: user.name,
             elo: DEFAULT_ELO,
+            totalGames: 0,
+            wins: 0,
+            losses: 0,
             isGuest: UserTypeEnum.GUEST,
         }
 
@@ -32,5 +35,43 @@ export class UserService {
         select?: FindOptionsSelect<User>,
     ): Promise<Partial<User>> {
         return await this.userRepository.findOne({ where: { id }, select })
+    }
+
+    async getMapUserElo(ids: string[]): Promise<Record<string, number>> {
+        const users = await this.userRepository.find({
+            where: {
+                id: In(ids)
+            }, select: {
+                id: true,
+                elo: true
+            }
+        })
+
+        return users.reduce((acc, user) => {
+            acc[user.id] = user.elo
+            return acc
+        }, {})
+    }
+
+    async updateEloAndStats(id: string, elo: number, isWinner: boolean, isDraw: boolean = false) {
+        const updateData: ObjectLiteral = {
+            elo,
+            totalGames: () => 'total_games + 1'
+        }
+
+        if (isDraw) {
+            updateData.draws = () => 'draws + 1'
+        } else if (isWinner) {
+            updateData.wins = () => 'wins + 1'
+        } else {
+            updateData.losses = () => 'losses + 1'
+        }
+
+        await this.userRepository
+            .createQueryBuilder()
+            .update(User)
+            .set(updateData)
+            .where('id = :id', { id })
+            .execute()
     }
 }
