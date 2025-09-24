@@ -68,14 +68,7 @@ export class GameService {
 
                 if (!gameState) {
                     setTimeout(async () => {
-                        try {
-                            const currentGameState = await this.getGameState(roomId)
-                            if (!currentGameState) {
-                                await this.startGameCountdown(roomId)
-                            }
-                        } catch (error) {
-                            console.error('Auto-start game failed:', error)
-                        }
+                        await this.startGameCountdown(roomId)
                     }, this.DELAY_START_GAME)
                 }
             }
