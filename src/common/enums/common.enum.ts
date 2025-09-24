@@ -6,13 +6,6 @@ export enum RoomStatusEnum {
     FINISHED = 'finished',         // Game kết thúc
 }
 
-export enum GameResultEnum {
-    NONE = 'none',
-    PLAYER_X_WIN = 'player_x_win',
-    PLAYER_O_WIN = 'player_o_win',
-    DRAW = 'draw',
-}
-
 export enum PlayerWinnerEnum {
     X = 'X',
     O = 'O',

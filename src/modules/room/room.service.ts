@@ -9,7 +9,7 @@ import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserService } from '@modules/user/user.service';
-import { RoomStatusEnum, GameResultEnum } from '@/common/enums/common.enum';
+import { RoomStatusEnum } from '@/common/enums/common.enum';
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants';
 import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
 import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
@@ -80,7 +80,6 @@ export class RoomService {
             createdAt: now.getTime(),
             name: createRoomDto.name,
             status: RoomStatusEnum.WAITING,
-            gameResult: GameResultEnum.NONE,
             playerIds: JSON.stringify([hostId]),
             password: createRoomDto.password || '',
             boardSize: createRoomDto.boardSize || DEFAULT_BOARD_SIZE,
