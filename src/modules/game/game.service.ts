@@ -135,11 +135,25 @@ export class GameService {
     private async startGame(roomId: string): Promise<void> {
         await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.PLAYING)
 
-        const [boardSizeStr, winConditionStr] = await this.roomRedisService.getRoomData(roomId, ['boardSize', 'winCondition'])
+        const [
+            boardSizeStr,
+            winConditionStr,
+            playerXId,
+            playerOId
+        ] =
+            await this.roomRedisService.getRoomData(roomId, [
+                'boardSize',
+                'winCondition',
+                'playerXId',
+                'playerOId'
+            ])
+            
         const size = +boardSizeStr
         const winCondition = +winConditionStr
 
         const gameState: IGameState = {
+            playerXId: playerXId,
+            playerOId: playerOId,
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
             isGameActive: true,
             moveCount: 0,
@@ -150,12 +164,13 @@ export class GameService {
 
         await this.roomRedisService.setRoomField(roomId, 'gameState', JSON.stringify(gameState))
 
-        const players = await this.getRoomPlayers(roomId)
-
         await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_STARTED, {
             roomId,
             gameState,
-            players,
+            players: {
+                playerXId: playerXId,
+                playerOId: playerOId,
+            },
         })
     }
 
@@ -171,12 +186,10 @@ export class GameService {
             throw new BadRequestException('Game is not active')
         }
 
-        const players = await this.getRoomPlayers(roomId)
-
         let playerSymbol: PlayerEnum
-        if (userId === players.playerXId) {
+        if (userId === gameState.playerXId) {
             playerSymbol = PlayerEnum.X
-        } else if (userId === players.playerOId) {
+        } else if (userId === gameState.playerOId) {
             playerSymbol = PlayerEnum.O
         } else {
             throw new BadRequestException('User is not a player in this game')
@@ -243,7 +256,10 @@ export class GameService {
             throw new WsException('Game not found or not started')
         }
 
-        const players = await this.getRoomPlayers(roomId)
+        const players: IPlayerAssignment = {
+            playerXId: gameState.playerXId,
+            playerOId: gameState.playerOId
+        }
         const gameResult = this.determineGameResult(gameState)
 
         return {
@@ -347,14 +363,6 @@ export class GameService {
     async getGameState(roomId: string): Promise<IGameState | null> {
         const gameStateStr = await this.roomRedisService.getRoomField(roomId, 'gameState')
         return gameStateStr ? JSON.parse(gameStateStr) : null
-    }
-
-    async getRoomPlayers(roomId: string): Promise<IPlayerAssignment> {
-        const [playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, ['playerXId', 'playerOId'])
-        return {
-            playerXId: playerXId || '',
-            playerOId: playerOId || '',
-        }
     }
 
     async isPlayerInGame(roomId: string, userId: string): Promise<boolean> {

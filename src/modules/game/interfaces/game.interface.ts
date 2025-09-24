@@ -9,6 +9,8 @@ export interface IGameState {
     startTime: string
     lastMoveTime?: string
     winCondition: number
+    playerXId: string
+    playerOId: string
 }
 
 export interface IGameMove {
