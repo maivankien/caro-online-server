@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants'
 import { PlayerEnum, PlayerWinnerEnum, RoomStatusEnum } from '@/common/enums/common.enum'
 import {
@@ -50,10 +50,7 @@ export class GameService {
                 throw new WsException('Room is not in waiting ready status')
             }
 
-            const playerIds = JSON.parse(playerIdsRaw || '[]')
-            if (!playerIds.includes(userId)) {
-                throw new WsException('User is not a player in this room')
-            }
+            const playerIds = JSON.parse(playerIdsRaw)
 
             if (!playerXId || !playerOId) {
                 await this.assignPlayers(roomId, playerIds)
@@ -167,37 +164,38 @@ export class GameService {
         })
     }
 
+    private getPlayerSymbol(userId: string, gameState: IGameState): PlayerEnum {
+        if (userId === gameState.playerXId) {
+            return PlayerEnum.X
+        } else if (userId === gameState.playerOId) {
+            return PlayerEnum.O
+        }
+    }
+
     async makeMove(userId: string, roomId: string, makeMoveDto: IMakeMoveDto): Promise<void> {
         const { row, col } = makeMoveDto
 
         const gameState = await this.getGameState(roomId)
         if (!gameState) {
-            throw new BadRequestException('Game not found')
+            throw new WsException('Game not found')
         }
 
         if (!gameState.isGameActive) {
-            throw new BadRequestException('Game is not active')
+            throw new WsException('Game is not active')
         }
 
-        let playerSymbol: PlayerEnum
-        if (userId === gameState.playerXId) {
-            playerSymbol = PlayerEnum.X
-        } else if (userId === gameState.playerOId) {
-            playerSymbol = PlayerEnum.O
-        } else {
-            throw new BadRequestException('User is not a player in this game')
-        }
-
+        let playerSymbol: PlayerEnum = this.getPlayerSymbol(userId, gameState)
+        
         if (gameState.currentPlayer !== playerSymbol) {
-            throw new BadRequestException('Not your turn')
+            throw new WsException('Not your turn')
         }
 
         if (row < 0 || row >= gameState.board.length || col < 0 || col >= gameState.board[0].length) {
-            throw new BadRequestException('Invalid move position')
+            throw new WsException('Invalid move position')
         }
 
         if (gameState.board[row][col] !== null) {
-            throw new BadRequestException('Position already occupied')
+            throw new WsException('Position already occupied')
         }
 
         gameState.moveCount++
@@ -228,8 +226,8 @@ export class GameService {
 
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
-                winner: 'DRAW',
                 gameState,
+                winner: PlayerWinnerEnum.DRAW,
             })
         }
 
