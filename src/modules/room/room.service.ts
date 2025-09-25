@@ -185,6 +185,18 @@ export class RoomService {
         return this.formatRoomResponse(roomData)
     }
 
+    async getRoomInfo(roomId: string): Promise<IRoomResponse> {
+        const rawData = await this.roomRedisService.getRoomData(roomId, this.ROOM_FIELDS)
+
+        const roomData = this.formatRoomData(rawData)
+
+        if (!roomData?.id) {
+            throw new BadRequestException('Room not found')
+        }
+
+        return this.formatRoomResponse(roomData)
+    }
+
     async joinRoom(userId: string, joinRoomDto: JoinRoomDto): Promise<void> {
         const { roomId, password: joinPassword } = joinRoomDto
 
@@ -230,5 +242,24 @@ export class RoomService {
             roomId,
             userId,
         })
+    }
+
+    async createRoomHistory(payload: Partial<Room>): Promise<void> {
+        const { id } = payload
+
+        const room = await this.roomRepository.findOne({
+            where: {
+                id,
+            },
+            select: {
+                id: true,
+            },
+        })
+
+        if (room) {
+            return
+        }
+
+        await this.roomRepository.insert(payload)
     }
 }

@@ -6,10 +6,14 @@ import { GameFinishedProcessor } from './processors/game-finished.processor'
 import { GAME_FINISHED_QUEUE } from '@/common/constants/common.constants'
 import { UserModule } from '@/modules/user/user.module'
 import { EloService } from '@/common/services/elo.service'
+import { RoomModule } from '@modules/room/room.module'
+import { GameModule } from '@modules/game/game.module'
 
 @Module({
     imports: [
         UserModule,
+        RoomModule,
+        GameModule,
         BullModule.registerQueue({
             name: GAME_FINISHED_QUEUE,
             defaultJobOptions: {

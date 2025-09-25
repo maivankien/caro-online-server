@@ -6,6 +6,8 @@ import { IGameFinishedPayload } from '@modules/game/interfaces/game.interface'
 import { GAME_FINISHED_QUEUE } from '@/common/constants/common.constants'
 import { EloService } from '@/common/services/elo.service'
 import { PlayerWinnerEnum } from '@/common/enums/common.enum'
+import { RoomService } from '@modules/room/room.service'
+import { GameHistoryService } from '@modules/game/services/game-history.service'
 
 @Injectable()
 @Processor(GAME_FINISHED_QUEUE)
@@ -13,7 +15,9 @@ export class GameFinishedProcessor extends WorkerHost {
 
     constructor(
         private readonly userService: UserService,
-        private readonly eloService: EloService
+        private readonly eloService: EloService,
+        private readonly roomService: RoomService,
+        private readonly gameHistoryService: GameHistoryService
     ) {
         super()
     }
@@ -30,12 +34,45 @@ export class GameFinishedProcessor extends WorkerHost {
     }
 
     private async processGameFinished(payload: IGameFinishedPayload) {
-        // Implement các logic xử lý khi game kết thúc:
-        // 1. Cập nhật điểm ELO và thống kê trận đấu của người chơi
-        // 2. Lưu lịch sử game vào database
-        // 3. Cleanup room data
+        try {
+            await this.updateEloAndStats(payload)
+            await this.createGameHistory(payload)
+        } catch (error) {
+            console.error('Failed to process game finished:', error)
+            throw error
+        }
+    }
 
-        await this.updateEloAndStats(payload)
+    private async createGameHistory(payload: IGameFinishedPayload) {
+        const { roomId, winner, winningLine, gameState } = payload
+
+        const roomDetail = await this.roomService.getRoomInfo(roomId)
+
+        await this.roomService.createRoomHistory({
+            id: roomId,
+            name: roomDetail.name,
+            hostId: roomDetail.host.id,
+            playerIds: roomDetail.playerIds,
+            boardSize: roomDetail.boardSize,
+            winCondition: roomDetail.winCondition,
+        })
+
+        const { id, board, playerXId, playerOId, startTime, finishedAt } = gameState
+
+        const winnerId = winner === PlayerWinnerEnum.X ? playerXId : playerOId
+
+        await this.gameHistoryService.createGameHistory({
+            id,
+            board,
+            roomId,
+            playerXId,
+            playerOId,
+            winnerId,
+            winningLine,
+            playerWinner: winner,
+            startedAt: new Date(startTime),
+            finishedAt: new Date(finishedAt),
+        })
     }
 
     private async updateEloAndStats(payload: IGameFinishedPayload) {

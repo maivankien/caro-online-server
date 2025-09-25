@@ -2,15 +2,17 @@ import { PlayerEnum, PlayerWinnerEnum } from "@/common/enums/common.enum"
 
 
 export interface IGameState {
+    id: string
     board: (PlayerEnum | null)[][]
     currentPlayer: PlayerEnum
     isGameActive: boolean
     moveCount: number
-    startTime: string
-    lastMoveTime?: string
     winCondition: number
     playerXId: string
     playerOId: string
+    lastMoveTime?: string
+    startTime: string
+    finishedAt?: string
 }
 
 export interface IGameMove {

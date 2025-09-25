@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { Injectable } from '@nestjs/common'
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants'
 import { PlayerEnum, PlayerWinnerEnum, RoomStatusEnum } from '@/common/enums/common.enum'
@@ -142,6 +143,7 @@ export class GameService {
         const winCondition = +winConditionStr
 
         const gameState: IGameState = {
+            id: uuidv4(),
             playerXId: playerXId,
             playerOId: playerOId,
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
@@ -214,6 +216,7 @@ export class GameService {
 
         if (winResult.hasWon) {
             gameState.isGameActive = false
+            gameState.finishedAt = new Date().toISOString()
 
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
@@ -223,7 +226,8 @@ export class GameService {
             })
         } else if (gameState.moveCount === gameState.board.length * gameState.board[0].length) {
             gameState.isGameActive = false
-
+            gameState.finishedAt = new Date().toISOString()
+            
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
                 gameState,
