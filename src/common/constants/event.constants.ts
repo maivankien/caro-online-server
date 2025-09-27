@@ -5,6 +5,8 @@ export const EVENT_EMITTER_CONSTANTS = {
     GAME_STARTED: 'game.started',
     GAME_MOVE_MADE: 'game.move.made',
     GAME_FINISHED: 'game.finished',
+    REQUEST_REMATCH: 'request.rematch',
+    ACCEPT_REMATCH_REQUEST: 'accept.rematch.request',
 } as const
 
 
@@ -19,4 +21,6 @@ export const EVENT_SOCKET_CONSTANTS = {
     GAME_MOVE_MADE: 'game.move.made',
     MAKE_MOVE: 'make.move',
     GAME_FINISHED: 'game.finished',
+    REQUEST_REMATCH: 'request.rematch',
+    ACCEPT_REMATCH: 'accept.rematch',
 } as const

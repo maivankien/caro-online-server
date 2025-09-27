@@ -139,7 +139,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
             const gameStateData = await this.gameService.getGameStateForPlayer(roomId)
 
             client.emit(EVENT_SOCKET_CONSTANTS.GAME_STATE_SYNC, gameStateData)
-            
+
         } catch (error) {
             client.emit(EVENT_SOCKET_CONSTANTS.ERROR, {
                 event: EVENT_SOCKET_CONSTANTS.GET_GAME_STATE,
@@ -199,5 +199,25 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
                 winningLine,
                 gameState,
             })
+    }
+
+    @SubscribeMessage(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH)
+    async handleRequestRematch(
+        @ConnectedSocket() client: Socket,
+    ) {
+        const { roomId } = client.data
+        const { userId } = client.data.user
+
+        await this.gameService.requestRematch(roomId, userId)
+    }
+
+    @SubscribeMessage(EVENT_SOCKET_CONSTANTS.ACCEPT_REMATCH)
+    async handleAcceptRematch(
+        @ConnectedSocket() client: Socket,
+    ) {
+        const { roomId } = client.data
+        const { userId } = client.data.user
+
+        await this.gameService.acceptRematch(roomId, userId)
     }
 }

@@ -138,7 +138,7 @@ export class GameService {
                 'playerXId',
                 'playerOId'
             ])
-            
+
         const size = +boardSizeStr
         const winCondition = +winConditionStr
 
@@ -187,7 +187,7 @@ export class GameService {
         }
 
         let playerSymbol: PlayerEnum = this.getPlayerSymbol(userId, gameState)
-        
+
         if (gameState.currentPlayer !== playerSymbol) {
             throw new WsException('Not your turn')
         }
@@ -227,7 +227,7 @@ export class GameService {
         } else if (gameState.moveCount === gameState.board.length * gameState.board[0].length) {
             gameState.isGameActive = false
             gameState.finishedAt = new Date().toISOString()
-            
+
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
                 gameState,
@@ -362,5 +362,71 @@ export class GameService {
 
     async isPlayerInGame(roomId: string, userId: string): Promise<boolean> {
         return await this.roomRedisService.isRoomPlayer(roomId, userId)
+    }
+
+    async acceptRematchRequest(roomId: string, playerIds: string[]) {
+        await this.assignPlayers(roomId, playerIds)
+
+        await this.startGame(roomId)
+    }
+
+    async requestRematch(roomId: string, userId: string): Promise<void> {
+        const lockKey = `room:${roomId}:ready`
+        const lockExpire = 5000 // 5 seconds
+        const lockTimeout = 3000 // 3 seconds timeout to acquire lock
+
+        const lockAcquired = await this.lockService.acquireLock(lockKey, lockExpire, lockTimeout)
+        if (!lockAcquired) {
+            throw new WsException('Another player is requesting rematch, please try again')
+        }
+
+        try {
+            const [
+                status,
+                playerIdsRaw,
+                rematchRequester,
+            ] = await this.roomRedisService.getRoomData(roomId, ['status', 'playerIds', 'rematchRequester'])
+
+            if (status !== RoomStatusEnum.FINISHED) {
+                throw new WsException('Room is not finished')
+            }
+
+            if (
+                status === RoomStatusEnum.WAITING_REMATCH
+                && rematchRequester && rematchRequester !== userId
+            ) {
+                return await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
+            }
+
+            await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+                multi.hset(this.roomRedisService.getRoomKey(roomId), 'rematchRequester', userId)
+                multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.WAITING_REMATCH)
+            })
+
+            await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.REQUEST_REMATCH, {
+                roomId,
+                userId,
+            })
+        } finally {
+            await this.lockService.unlock(lockKey)
+        }
+    }
+
+    async acceptRematch(roomId: string, userId: string): Promise<void> {
+        const [status, playerIdsRaw, rematchRequester] = await this.roomRedisService.getRoomData(roomId, [
+            'status',
+            'playerIds',
+            'rematchRequester'
+        ])
+    
+        if (status !== RoomStatusEnum.WAITING_REMATCH) {
+            throw new WsException('Room is not waiting for rematch')
+        }
+
+        if (rematchRequester === userId) {
+            throw new WsException('You cannot accept your own rematch request')
+        }
+
+        await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
     }
 }

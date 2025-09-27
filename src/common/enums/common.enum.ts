@@ -4,6 +4,7 @@ export enum RoomStatusEnum {
     COUNTDOWN = 'countdown',       // Đang countdown 3-2-1
     PLAYING = 'playing',           // Game đang diễn ra
     FINISHED = 'finished',         // Game kết thúc
+    WAITING_REMATCH = 'waiting_rematch', // Chờ player thứ 2 join rematch
 }
 
 export enum PlayerWinnerEnum {
