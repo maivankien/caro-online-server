@@ -10,6 +10,7 @@ import {
     IPosition,
     IPlayerReadyStatus,
     IGameStateSyncPayload,
+    ISocketData,
 } from './interfaces/game.interface'
 import { WsException } from '@nestjs/websockets'
 import { RoomRedisService } from '@modules/room/services/room-redis.service'
@@ -218,6 +219,8 @@ export class GameService {
             gameState.isGameActive = false
             gameState.finishedAt = new Date().toISOString()
 
+            await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
+
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
                 winner: playerSymbol,
@@ -227,6 +230,8 @@ export class GameService {
         } else if (gameState.moveCount === gameState.board.length * gameState.board[0].length) {
             gameState.isGameActive = false
             gameState.finishedAt = new Date().toISOString()
+
+            await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
 
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
                 roomId,
@@ -370,7 +375,10 @@ export class GameService {
         await this.startGame(roomId)
     }
 
-    async requestRematch(roomId: string, userId: string): Promise<void> {
+    async requestRematch(data: ISocketData): Promise<void> {
+        const { roomId, user } = data
+        const { userId } = user
+
         const lockKey = `room:${roomId}:ready`
         const lockExpire = 5000 // 5 seconds
         const lockTimeout = 3000 // 3 seconds timeout to acquire lock
@@ -405,14 +413,17 @@ export class GameService {
 
             await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.REQUEST_REMATCH, {
                 roomId,
-                userId,
+                user,
             })
         } finally {
             await this.lockService.unlock(lockKey)
         }
     }
 
-    async acceptRematch(roomId: string, userId: string): Promise<void> {
+    async acceptRematch(data: ISocketData): Promise<void> {
+        const { roomId, user } = data
+        const { userId } = user
+
         const [status, playerIdsRaw, rematchRequester] = await this.roomRedisService.getRoomData(roomId, [
             'status',
             'playerIds',
@@ -427,6 +438,20 @@ export class GameService {
             throw new WsException('You cannot accept your own rematch request')
         }
 
+        await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.ACCEPT_REMATCH, {
+            roomId,
+            user,
+        })
+
         await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
+    }
+
+    async declineRematch(data: ISocketData): Promise<void> {
+        const { roomId, user } = data
+
+        await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.DECLINE_REMATCH, {
+            roomId,
+            user,
+        })
     }
 }

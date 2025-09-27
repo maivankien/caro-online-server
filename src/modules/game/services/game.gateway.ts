@@ -20,6 +20,7 @@ import {
     IGameFinishedPayload,
     IMakeMoveDto,
     ISocketCustom,
+    IUserInfo,
 } from '../interfaces/game.interface'
 import { UserService } from '@modules/user/user.service'
 
@@ -215,31 +216,47 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
     async handleRequestRematch(
         @ConnectedSocket() client: ISocketCustom,
     ) {
-        const { roomId } = client.data
-        const { userId } = client.data.user
-
-        await this.gameService.requestRematch(roomId, userId)
+        await this.gameService.requestRematch(client.data)
     }
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.ACCEPT_REMATCH)
     async handleAcceptRematch(
         @ConnectedSocket() client: ISocketCustom,
     ) {
-        const { roomId } = client.data
-        const { userId } = client.data.user
+        await this.gameService.acceptRematch(client.data)
+    }
 
-        await this.gameService.acceptRematch(roomId, userId)
+    @SubscribeMessage(EVENT_SOCKET_CONSTANTS.DECLINE_REMATCH)
+    async handleDeclineRematch(
+        @ConnectedSocket() client: ISocketCustom,
+    ) {
+        await this.gameService.declineRematch(client.data)
     }
 
     @OnEvent(EVENT_EMITTER_CONSTANTS.REQUEST_REMATCH)
-    async handleRematchRequested(payload: { roomId: string, userId: string }) {
-        const { roomId, userId } = payload
+    async handleRematchRequested(payload: { roomId: string, user: IUserInfo }) {
+        const { roomId, user } = payload
 
         this.server
             .to(this.getGameRoomId(roomId))
-            .emit(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH, {
-                roomId,
-                userId,
-            })
+            .emit(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH, user)
+    }
+
+    @OnEvent(EVENT_EMITTER_CONSTANTS.ACCEPT_REMATCH)
+    async handleRematchAccepted(payload: { roomId: string, user: IUserInfo }) {
+        const { roomId, user } = payload
+
+        this.server
+            .to(this.getGameRoomId(roomId))
+            .emit(EVENT_SOCKET_CONSTANTS.ACCEPT_REMATCH, user)
+    }
+
+    @OnEvent(EVENT_EMITTER_CONSTANTS.DECLINE_REMATCH)
+    async handleRematchDeclined(payload: { roomId: string, user: IUserInfo }) {
+        const { roomId, user } = payload
+
+        this.server
+            .to(this.getGameRoomId(roomId))
+            .emit(EVENT_SOCKET_CONSTANTS.DECLINE_REMATCH, user)
     }
 }
