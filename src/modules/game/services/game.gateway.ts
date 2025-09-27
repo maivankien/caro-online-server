@@ -220,4 +220,16 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
         await this.gameService.acceptRematch(roomId, userId)
     }
+
+    @OnEvent(EVENT_EMITTER_CONSTANTS.REQUEST_REMATCH)
+    async handleRematchRequested(payload: { roomId: string, userId: string }) {
+        const { roomId, userId } = payload
+
+        this.server
+            .to(this.getGameRoomId(roomId))
+            .emit(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH, {
+                roomId,
+                userId,
+            })
+    }
 }

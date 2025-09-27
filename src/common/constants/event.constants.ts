@@ -6,7 +6,6 @@ export const EVENT_EMITTER_CONSTANTS = {
     GAME_MOVE_MADE: 'game.move.made',
     GAME_FINISHED: 'game.finished',
     REQUEST_REMATCH: 'request.rematch',
-    ACCEPT_REMATCH_REQUEST: 'accept.rematch.request',
 } as const
 
 
