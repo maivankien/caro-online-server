@@ -8,11 +8,13 @@ import { LockService } from '@common/services/lock.service'
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { GameHistory } from './entities/game-history.entity'
 import { GameHistoryService } from './services/game-history.service'
+import { UserModule } from '../user/user.module'
 
 @Module({
     imports: [
         AuthModule,
         RoomModule,
+        UserModule,
         EventEmitterModule.forRoot(),
         TypeOrmModule.forFeature([GameHistory]),
     ],

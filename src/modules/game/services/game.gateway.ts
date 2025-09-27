@@ -1,6 +1,6 @@
-import { Server, Socket } from 'socket.io'
+import { Server } from 'socket.io'
 import { GameService } from '../game.service'
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter'
+import { OnEvent } from '@nestjs/event-emitter'
 import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common'
 import { WebSocketJwtStrategy } from '@modules/auth/strategies/ws-jwt.strategy'
 import { WsExceptionsFilter } from '@common/filters/ws-exception.filter'
@@ -19,7 +19,9 @@ import {
     IGameMovePayload,
     IGameFinishedPayload,
     IMakeMoveDto,
+    ISocketCustom,
 } from '../interfaces/game.interface'
+import { UserService } from '@modules/user/user.service'
 
 
 @WebSocketGateway({
@@ -37,14 +39,14 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     constructor(
         private readonly gameService: GameService,
-        private readonly eventEmitter: EventEmitter2,
+        private readonly userService: UserService,
         private readonly webSocketJwtStrategy: WebSocketJwtStrategy,
     ) { }
 
     afterInit(server: Server): void {
         this.server = server
 
-        server.use(async (socket, next) => {
+        server.use(async (socket: ISocketCustom, next: (err?: Error) => void) => {
             try {
                 const user = await this.webSocketJwtStrategy.authenticate(socket)
 
@@ -56,13 +58,21 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
                     throw new WsException('Room ID is required')
                 }
 
-                const isPlayer = await this.gameService.isPlayerInGame(roomId, user.userId)
+                const { userId } = user
+                const isPlayer = await this.gameService.isPlayerInGame(roomId, userId)
 
                 if (!isPlayer) {
                     throw new WsException('User is not a player in this game')
                 }
 
-                socket.data.user = user
+                const { name } = await this.userService.findById(userId, {
+                    name: true
+                })
+
+                socket.data.user = {
+                    name,
+                    userId,
+                }
                 socket.data.roomId = roomId
 
                 next()
@@ -81,7 +91,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
         return `game_${roomId}`
     }
 
-    async handleConnection(client: Socket) {
+    async handleConnection(client: ISocketCustom) {
         const { roomId } = client.data
 
         await client.join(this.getGameRoomId(roomId))
@@ -89,7 +99,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.PLAYER_READY)
     async handlePlayerReady(
-        @ConnectedSocket() client: Socket,
+        @ConnectedSocket() client: ISocketCustom,
     ) {
         try {
             const { roomId } = client.data
@@ -108,7 +118,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.MAKE_MOVE)
     async handleMakeMove(
-        @ConnectedSocket() client: Socket,
+        @ConnectedSocket() client: ISocketCustom,
         @MessageBody() data: IMakeMoveDto
     ) {
         try {
@@ -131,7 +141,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.GET_GAME_STATE)
     async handleGetGameState(
-        @ConnectedSocket() client: Socket,
+        @ConnectedSocket() client: ISocketCustom,
     ) {
         try {
             const { roomId } = client.data
@@ -203,7 +213,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH)
     async handleRequestRematch(
-        @ConnectedSocket() client: Socket,
+        @ConnectedSocket() client: ISocketCustom,
     ) {
         const { roomId } = client.data
         const { userId } = client.data.user
@@ -213,7 +223,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.ACCEPT_REMATCH)
     async handleAcceptRematch(
-        @ConnectedSocket() client: Socket,
+        @ConnectedSocket() client: ISocketCustom,
     ) {
         const { roomId } = client.data
         const { userId } = client.data.user

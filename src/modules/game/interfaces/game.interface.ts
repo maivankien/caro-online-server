@@ -1,3 +1,4 @@
+import { Socket } from 'socket.io'
 import { PlayerEnum, PlayerWinnerEnum } from "@/common/enums/common.enum"
 
 
@@ -75,4 +76,22 @@ export interface IGameStateSyncPayload {
     players: IPlayerAssignment
     winner?: PlayerWinnerEnum | null
     winningLine?: IPosition[]
+}
+
+export interface ISocketData {
+    user: IUserInfo
+    roomId: string
+}
+
+
+export interface ISocketCustom extends Socket {
+    data: {
+        user: IUserInfo
+        roomId: string
+    }
+}
+
+export interface IUserInfo {
+    userId: string
+    name: string
 }
