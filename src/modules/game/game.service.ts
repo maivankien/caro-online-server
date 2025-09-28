@@ -395,7 +395,7 @@ export class GameService {
                 rematchRequester,
             ] = await this.roomRedisService.getRoomData(roomId, ['status', 'playerIds', 'rematchRequester'])
 
-            if (status !== RoomStatusEnum.FINISHED) {
+            if (status !== RoomStatusEnum.FINISHED && status !== RoomStatusEnum.WAITING_REMATCH) {
                 throw new WsException('Room is not finished')
             }
 
