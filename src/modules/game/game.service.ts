@@ -213,6 +213,8 @@ export class GameService {
             timestamp: gameState.lastMoveTime,
         }
 
+        gameState.lastMovePosition = { row, col }
+
         const winResult = this.checkWinCondition(gameState, row, col, playerSymbol)
 
         if (winResult.hasWon) {

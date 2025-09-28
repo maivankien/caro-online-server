@@ -12,6 +12,7 @@ export interface IGameState {
     playerXId: string
     playerOId: string
     lastMoveTime?: string
+    lastMovePosition?: IPosition
     startTime: string
     finishedAt?: string
 }
