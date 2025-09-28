@@ -86,7 +86,7 @@ export class RoomRedisService {
         }
     }
 
-    async executeRoomMulti(roomId: string, operations: (multi: any) => void): Promise<any> {
+    async executeRoomMulti(operations: (multi: any) => void): Promise<any> {
         const multi = this.redis.multi()
         operations(multi)
         return await multi.exec()

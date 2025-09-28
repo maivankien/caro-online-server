@@ -86,7 +86,7 @@ export class RoomService {
             winCondition: createRoomDto.winCondition || DEFAULT_WIN_CONDITION,
         }
 
-        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+        await this.roomRedisService.executeRoomMulti((multi) => {
             multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
             multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), hostId)
             multi.zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
@@ -231,7 +231,7 @@ export class RoomService {
 
         playerIds.push(userId)
 
-        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+        await this.roomRedisService.executeRoomMulti((multi) => {
             multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.WAITING_READY)
             multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerIds', JSON.stringify(playerIds))
             multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), userId)

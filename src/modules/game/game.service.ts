@@ -118,7 +118,7 @@ export class GameService {
         const playerXId = playerIds[randomIndex]
         const playerOId = playerIds[1 - randomIndex]
 
-        await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+        await this.roomRedisService.executeRoomMulti((multi) => {
             multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerXId', playerXId)
             multi.hset(this.roomRedisService.getRoomKey(roomId), 'playerOId', playerOId)
         })
@@ -406,7 +406,7 @@ export class GameService {
                 return await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
             }
 
-            await this.roomRedisService.executeRoomMulti(roomId, (multi) => {
+            await this.roomRedisService.executeRoomMulti((multi) => {
                 multi.hset(this.roomRedisService.getRoomKey(roomId), 'rematchRequester', userId)
                 multi.hset(this.roomRedisService.getRoomKey(roomId), 'status', RoomStatusEnum.WAITING_REMATCH)
             })
