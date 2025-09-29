@@ -8,12 +8,17 @@ export const EVENT_EMITTER_CONSTANTS = {
     REQUEST_REMATCH: 'request.rematch',
     ACCEPT_REMATCH: 'accept.rematch',
     DECLINE_REMATCH: 'decline.rematch',
+
+    // Matchmaking gateway
+    MATCHMAKING_FOUND: 'matchmaking.found',
 } as const
 
 
 export const EVENT_SOCKET_CONSTANTS = {
     ERROR: 'error',
     ROOM_JOINED: 'room.joined',
+
+    // Game gateway
     PLAYER_READY: 'player.ready',
     GET_GAME_STATE: 'get.game.state',
     GAME_STATE_SYNC: 'game.state.sync',
@@ -25,4 +30,8 @@ export const EVENT_SOCKET_CONSTANTS = {
     REQUEST_REMATCH: 'request.rematch',
     ACCEPT_REMATCH: 'accept.rematch',
     DECLINE_REMATCH: 'decline.rematch',
+
+    // Matchmaking gateway
+    MATCHMAKING: 'matchmaking',
+    MATCHMAKING_FOUND: 'matchmaking.found',
 } as const

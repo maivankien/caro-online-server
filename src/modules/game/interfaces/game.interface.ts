@@ -85,7 +85,7 @@ export interface ISocketData {
 }
 
 
-export interface ISocketCustom extends Socket {
+export interface IGameSocketCustom extends Socket {
     data: {
         user: IUserInfo
         roomId: string

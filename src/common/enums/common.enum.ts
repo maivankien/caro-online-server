@@ -7,6 +7,10 @@ export enum RoomStatusEnum {
     WAITING_REMATCH = 'waiting_rematch', // Chờ player thứ 2 join rematch
 }
 
+export enum RoomTypeEnum {
+    MATCHMAKING = 'matchmaking',
+}
+
 export enum PlayerWinnerEnum {
     X = 'X',
     O = 'O',

@@ -10,6 +10,7 @@ import { RedisProviderModule } from './providers/cache/redis/provider.module';
 import { MysqlDatabaseProviderModule } from '@providers/database/mysql/provider.module';
 import { BullMQProviderModule } from './providers/queue/bullmq.module';
 import { GameQueueModule } from '@modules/game-queue/game-queue.module';
+import { MatchmakingModule } from '@modules/matchmaking/matchmaking.module';
 
 @Module({
     imports: [
@@ -22,6 +23,7 @@ import { GameQueueModule } from '@modules/game-queue/game-queue.module';
         RedisProviderModule,
         BullMQProviderModule,
         GameQueueModule,
+        MatchmakingModule,
         MysqlDatabaseProviderModule,
         RouterModule.register([
             {

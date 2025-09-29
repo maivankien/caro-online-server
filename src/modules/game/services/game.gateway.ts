@@ -19,7 +19,7 @@ import {
     IGameMovePayload,
     IGameFinishedPayload,
     IMakeMoveDto,
-    ISocketCustom,
+    IGameSocketCustom,
     IUserInfo,
 } from '../interfaces/game.interface'
 import { UserService } from '@modules/user/user.service'
@@ -47,7 +47,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
     afterInit(server: Server): void {
         this.server = server
 
-        server.use(async (socket: ISocketCustom, next: (err?: Error) => void) => {
+        server.use(async (socket: IGameSocketCustom, next: (err?: Error) => void) => {
             try {
                 const user = await this.webSocketJwtStrategy.authenticate(socket)
 
@@ -92,7 +92,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
         return `game_${roomId}`
     }
 
-    async handleConnection(client: ISocketCustom) {
+    async handleConnection(client: IGameSocketCustom) {
         const { roomId } = client.data
 
         await client.join(this.getGameRoomId(roomId))
@@ -100,7 +100,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.PLAYER_READY)
     async handlePlayerReady(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
     ) {
         try {
             const { roomId } = client.data
@@ -119,7 +119,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.MAKE_MOVE)
     async handleMakeMove(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
         @MessageBody() data: IMakeMoveDto
     ) {
         try {
@@ -142,7 +142,7 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.GET_GAME_STATE)
     async handleGetGameState(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
     ) {
         try {
             const { roomId } = client.data
@@ -214,21 +214,21 @@ export class GameGateway implements OnGatewayInit, OnGatewayConnection {
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.REQUEST_REMATCH)
     async handleRequestRematch(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
     ) {
         await this.gameService.requestRematch(client.data)
     }
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.ACCEPT_REMATCH)
     async handleAcceptRematch(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
     ) {
         await this.gameService.acceptRematch(client.data)
     }
 
     @SubscribeMessage(EVENT_SOCKET_CONSTANTS.DECLINE_REMATCH)
     async handleDeclineRematch(
-        @ConnectedSocket() client: ISocketCustom,
+        @ConnectedSocket() client: IGameSocketCustom,
     ) {
         await this.gameService.declineRematch(client.data)
     }

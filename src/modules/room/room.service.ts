@@ -9,7 +9,7 @@ import { Room } from './entities/room.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserService } from '@modules/user/user.service';
-import { RoomStatusEnum } from '@/common/enums/common.enum';
+import { RoomStatusEnum, RoomTypeEnum } from '@/common/enums/common.enum';
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants';
 import { IRoomResponse, IRoomFormat, IRoomListResponse } from './interfaces/room.interface';
 import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
@@ -47,11 +47,11 @@ export class RoomService {
     private formatRoomResponse(room: Partial<IRoomFormat>): IRoomResponse {
         return {
             id: room.id,
-            name: room.name,
-            host: JSON.parse(room.host),
+            name: room?.name,
+            host: room?.host ? JSON.parse(room?.host) : null,
             status: room.status,
-            playerIds: JSON.parse(room.playerIds),
-            hasPassword: !!room.password,
+            playerIds: room?.playerIds ? JSON.parse(room?.playerIds) : [],
+            hasPassword: !!room?.password,
             boardSize: room.boardSize,
             winCondition: room.winCondition,
             createdAt: new Date(room.createdAt),
@@ -90,6 +90,38 @@ export class RoomService {
             multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
             multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), hostId)
             multi.zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
+        })
+
+        return this.formatRoomResponse(roomData)
+    }
+
+    async createMatchmakingRoom({
+        playerA,
+        playerB,
+        boardSize,
+        winCondition,
+    }: {
+        playerA: string
+        playerB: string
+        boardSize: number
+        winCondition: number
+    }): Promise<IRoomResponse> {
+        const roomId = uuidv4()
+        const now = new Date()
+
+        const roomData = {
+            id: roomId,
+            boardSize,
+            winCondition,
+            createdAt: now.getTime(),
+            type: RoomTypeEnum.MATCHMAKING,
+            status: RoomStatusEnum.WAITING_READY,
+            playerIds: JSON.stringify([playerA, playerB]),
+        }
+
+        await this.roomRedisService.executeRoomMulti((multi) => {
+            multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
+            multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), playerA, playerB)
         })
 
         return this.formatRoomResponse(roomData)
