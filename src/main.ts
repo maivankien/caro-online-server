@@ -6,9 +6,12 @@ import { ResponseInterceptor } from '@common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from '@common/filters/http-exception.filter';
 import { AppConfigService } from './config/app/config.service';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { registerGlobalProcessHandlers } from './common/filters/global-process-handler.filter';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
+
+    registerGlobalProcessHandlers()
 
     app.setGlobalPrefix('api')
 
