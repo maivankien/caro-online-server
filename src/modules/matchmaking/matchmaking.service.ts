@@ -24,6 +24,10 @@ export class MatchmakingService {
         return `matchmaking:queue:${boardSize}:${winCondition}`
     }
 
+    private getUserMatchmakingKey(userId: string): string {
+        return `matchmaking:user:${userId}`
+    }
+
     private async removePairIfExists(queueKey: string, userId: string, opponent: string): Promise<boolean> {
         const luaScript = `
             local exists1 = redis.call("ZSCORE", KEYS[1], ARGV[1])
@@ -55,8 +59,16 @@ export class MatchmakingService {
             const maxRange = 500
             const delay = 1000
             const queueKey = this.getQueueKey(boardSize, winCondition)
-
-            await this.redis.zadd(queueKey, elo, userId)
+            const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+            
+            const pipeline = this.redis.pipeline()
+                pipeline.zadd(queueKey, elo, userId)
+                pipeline.hset(userMatchmakingKey, {
+                    boardSize: boardSize.toString(),
+                    winCondition: winCondition.toString(),
+                })
+            await pipeline.exec()
+            
 
             let range = rangeStep
             while (range <= maxRange) {
@@ -70,6 +82,10 @@ export class MatchmakingService {
                     const success = await this.removePairIfExists(queueKey, userId, opponent)
 
                     if (success) {
+                        const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+                        const opponentMatchmakingKey = this.getUserMatchmakingKey(opponent)
+                        await this.redis.del(userMatchmakingKey, opponentMatchmakingKey)
+
                         const room = await this.roomService.createMatchmakingRoom({
                             playerA: userId,
                             playerB: opponent,
@@ -97,6 +113,34 @@ export class MatchmakingService {
             }
 
             console.log('Error in matchmaking: ', error)
+            throw new WsException('Internal server error')
+        }
+    }
+
+    async matchmakingCancel(client: IMatchmakingSocketCustom) {
+        try {
+            const { userId } = client.data.user
+            
+            const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+            const matchmakingInfo = await this.redis.hgetall(userMatchmakingKey)
+            
+            if (!matchmakingInfo.boardSize || !matchmakingInfo.winCondition) {
+                throw new WsException('User is not in matchmaking queue')
+            }
+            
+            const { queueKey } = matchmakingInfo
+            
+            const pipeline = this.redis.pipeline()
+                pipeline.zrem(queueKey, userId)
+                pipeline.del(userMatchmakingKey)
+            await pipeline.exec()
+
+        } catch (error) {
+            if (error instanceof WsException) {
+                throw error
+            }
+            
+            console.log('Error in matchmaking cancel: ', error)
             throw new WsException('Internal server error')
         }
     }

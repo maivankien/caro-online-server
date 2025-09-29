@@ -78,6 +78,11 @@ export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection {
         await this.matchmakingService.matchmaking(client, payload)
     }
 
+    @SubscribeMessage(EVENT_SOCKET_CONSTANTS.MATCHMAKING_CANCEL)
+    async matchmakingCancel(client: IMatchmakingSocketCustom) {
+        await this.matchmakingService.matchmakingCancel(client)
+    }
+
     @OnEvent(EVENT_EMITTER_CONSTANTS.MATCHMAKING_FOUND)
     async matchmakingFound(payload: { playerA: string, playerB: string, roomId: string }) {
         const { playerA, playerB, roomId } = payload

@@ -34,4 +34,5 @@ export const EVENT_SOCKET_CONSTANTS = {
     // Matchmaking gateway
     MATCHMAKING: 'matchmaking',
     MATCHMAKING_FOUND: 'matchmaking.found',
+    MATCHMAKING_CANCEL: 'matchmaking.cancel',
 } as const
