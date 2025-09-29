@@ -8,7 +8,7 @@ import { WsExceptionsFilter } from "@/common/filters/ws-exception.filter"
 import { WebSocketJwtStrategy } from "@modules/auth/strategies/ws-jwt.strategy"
 import { IMatchmakingSocketCustom } from "./interfaces/matchmaking.interface"
 import { EVENT_EMITTER_CONSTANTS, EVENT_SOCKET_CONSTANTS } from "@/common/constants/event.constants"
-import { OnGatewayConnection, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer, WsException } from "@nestjs/websockets"
+import { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer, WsException } from "@nestjs/websockets"
 
 
 
@@ -21,7 +21,7 @@ import { OnGatewayConnection, OnGatewayInit, SubscribeMessage, WebSocketGateway,
 })
 @UseFilters(new WsExceptionsFilter())
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection {
+export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer()
     server: Server
 
@@ -70,6 +70,13 @@ export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection {
         const { userId } = client.data.user
 
         await client.join(this.getMatchmakingRoomId(userId))
+    }
+
+    async handleDisconnect(client: IMatchmakingSocketCustom) {
+        const { userId } = client.data.user
+
+        await client.leave(this.getMatchmakingRoomId(userId))
+        await this.matchmakingService.matchmakingCancel(client)
     }
 
 
