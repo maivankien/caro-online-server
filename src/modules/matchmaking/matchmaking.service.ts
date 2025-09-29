@@ -60,15 +60,15 @@ export class MatchmakingService {
             const delay = 1000
             const queueKey = this.getQueueKey(boardSize, winCondition)
             const userMatchmakingKey = this.getUserMatchmakingKey(userId)
-            
+
             const pipeline = this.redis.pipeline()
-                pipeline.zadd(queueKey, elo, userId)
-                pipeline.hset(userMatchmakingKey, {
-                    boardSize: boardSize.toString(),
-                    winCondition: winCondition.toString(),
-                })
+            pipeline.zadd(queueKey, elo, userId)
+            pipeline.hset(userMatchmakingKey, {
+                boardSize: boardSize.toString(),
+                winCondition: winCondition.toString(),
+            })
             await pipeline.exec()
-            
+
 
             let range = rangeStep
             while (range <= maxRange) {
@@ -120,28 +120,42 @@ export class MatchmakingService {
     async matchmakingCancel(client: IMatchmakingSocketCustom) {
         try {
             const { userId } = client.data.user
-            
+
             const userMatchmakingKey = this.getUserMatchmakingKey(userId)
             const matchmakingInfo = await this.redis.hgetall(userMatchmakingKey)
-            
-            if (!matchmakingInfo.boardSize || !matchmakingInfo.winCondition) {
+
+            const { boardSize, winCondition } = matchmakingInfo
+
+            if (!boardSize || !winCondition) {
                 throw new WsException('User is not in matchmaking queue')
             }
-            
-            const { queueKey } = matchmakingInfo
-            
+
+            const queueKey = this.getQueueKey(+boardSize, +winCondition)
+
             const pipeline = this.redis.pipeline()
-                pipeline.zrem(queueKey, userId)
-                pipeline.del(userMatchmakingKey)
+            pipeline.zrem(queueKey, userId)
+            pipeline.del(userMatchmakingKey)
             await pipeline.exec()
 
         } catch (error) {
             if (error instanceof WsException) {
                 throw error
             }
-            
+
             console.log('Error in matchmaking cancel: ', error)
             throw new WsException('Internal server error')
+        }
+    }
+
+    async handleDisconnect(client: IMatchmakingSocketCustom) {
+        try {
+            await this.matchmakingCancel(client)
+        } catch (error) {
+            if (error instanceof WsException) {
+                return
+            }
+
+            throw error
         }
     }
 }

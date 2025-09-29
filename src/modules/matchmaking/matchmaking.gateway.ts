@@ -76,7 +76,8 @@ export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection, O
         const { userId } = client.data.user
 
         await client.leave(this.getMatchmakingRoomId(userId))
-        await this.matchmakingService.matchmakingCancel(client)
+
+        await this.matchmakingService.handleDisconnect(client)
     }
 
 
