@@ -11,6 +11,7 @@ export const EVENT_EMITTER_CONSTANTS = {
 
     // Matchmaking gateway
     MATCHMAKING_FOUND: 'matchmaking.found',
+    MATCHMAKING_TIMEOUT: 'matchmaking.timeout',
 } as const
 
 
@@ -35,4 +36,5 @@ export const EVENT_SOCKET_CONSTANTS = {
     MATCHMAKING: 'matchmaking',
     MATCHMAKING_FOUND: 'matchmaking.found',
     MATCHMAKING_CANCEL: 'matchmaking.cancel',
+    MATCHMAKING_TIMEOUT: 'matchmaking.timeout',
 } as const

@@ -104,4 +104,15 @@ export class MatchmakingGateway implements OnGatewayInit, OnGatewayConnection, O
                 roomId,
             })
     }
+
+    @OnEvent(EVENT_EMITTER_CONSTANTS.MATCHMAKING_TIMEOUT)
+    async matchmakingTimeout(payload: { userId: string }) {
+        const { userId } = payload
+
+        this.server
+            .to(this.getMatchmakingRoomId(userId))
+            .emit(EVENT_SOCKET_CONSTANTS.MATCHMAKING_TIMEOUT, {
+                message: 'Matchmaking timeout: No opponent found',
+            })
+    }
 }

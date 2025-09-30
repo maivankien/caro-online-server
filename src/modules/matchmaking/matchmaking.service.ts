@@ -11,6 +11,8 @@ import { WsException } from "@nestjs/websockets";
 
 @Injectable()
 export class MatchmakingService {
+    private readonly MATCH_MAKING_TIMEOUT: number = 60000 // 60 seconds
+
     constructor(
         @Inject(REDIS_CLIENT)
         private readonly redis: Redis,
@@ -28,6 +30,10 @@ export class MatchmakingService {
         return `matchmaking:user:${userId}`
     }
 
+    private getUserMatchmakingTimeoutKey(userId: string): string {
+        return `matchmaking:timeout:${userId}`
+    }
+
     private async removePairIfExists(queueKey: string, userId: string, opponent: string): Promise<boolean> {
         const luaScript = `
             local exists1 = redis.call("ZSCORE", KEYS[1], ARGV[1])
@@ -41,6 +47,35 @@ export class MatchmakingService {
             end`
 
         return await this.redis.eval(luaScript, 1, queueKey, userId, opponent) === 1
+    }
+
+    private async handleMatchFound(userId: string, opponent: string, boardSize: number, winCondition: number) {
+        const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+        const opponentMatchmakingKey = this.getUserMatchmakingKey(opponent)
+        const userTimeoutKey = this.getUserMatchmakingTimeoutKey(userId)
+        const opponentTimeoutKey = this.getUserMatchmakingTimeoutKey(opponent)
+
+        await this.redis.pipeline()
+            .del(userMatchmakingKey)
+            .del(opponentMatchmakingKey)
+            .del(userTimeoutKey)
+            .del(opponentTimeoutKey)
+            .exec()
+
+        const room = await this.roomService.createMatchmakingRoom({
+            playerA: userId,
+            playerB: opponent,
+            boardSize,
+            winCondition,
+        })
+
+        const data = {
+            playerA: userId,
+            playerB: opponent,
+            roomId: room.id,
+        }
+
+        return await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.MATCHMAKING_FOUND, data)
     }
 
 
@@ -60,15 +95,26 @@ export class MatchmakingService {
             const delay = 1000
             const queueKey = this.getQueueKey(boardSize, winCondition)
             const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+            const userTimeoutKey = this.getUserMatchmakingTimeoutKey(userId)
 
-            const pipeline = this.redis.pipeline()
-            pipeline.zadd(queueKey, elo, userId)
-            pipeline.hset(userMatchmakingKey, {
-                boardSize: boardSize.toString(),
-                winCondition: winCondition.toString(),
+            const sessionId = Date.now().toString()
+
+            await this.redis.pipeline()
+                .zadd(queueKey, elo, userId)
+                .hset(userMatchmakingKey, {
+                    boardSize: boardSize.toString(),
+                    winCondition: winCondition.toString(),
+                })
+                .set(userTimeoutKey, sessionId)
+                .exec()
+
+            this.handleMatchmakingTimeout({
+                userId,
+                userTimeoutKey,
+                sessionId,
+                queueKey,
+                userMatchmakingKey,
             })
-            await pipeline.exec()
-
 
             let range = rangeStep
             while (range <= maxRange) {
@@ -82,24 +128,7 @@ export class MatchmakingService {
                     const success = await this.removePairIfExists(queueKey, userId, opponent)
 
                     if (success) {
-                        const userMatchmakingKey = this.getUserMatchmakingKey(userId)
-                        const opponentMatchmakingKey = this.getUserMatchmakingKey(opponent)
-                        await this.redis.del(userMatchmakingKey, opponentMatchmakingKey)
-
-                        const room = await this.roomService.createMatchmakingRoom({
-                            playerA: userId,
-                            playerB: opponent,
-                            boardSize,
-                            winCondition,
-                        })
-
-                        const data = {
-                            playerA: userId,
-                            playerB: opponent,
-                            roomId: room.id,
-                        }
-
-                        return await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.MATCHMAKING_FOUND, data)
+                        return await this.handleMatchFound(userId, opponent, boardSize, winCondition)
                     }
                 }
 
@@ -117,11 +146,50 @@ export class MatchmakingService {
         }
     }
 
+    private async handleMatchmakingTimeout({
+        userId,
+        userTimeoutKey,
+        sessionId,
+        queueKey,
+        userMatchmakingKey,
+    }: {
+        userId: string,
+        userTimeoutKey: string,
+        sessionId: string,
+        queueKey: string,
+        userMatchmakingKey: string,
+    }) {
+        setTimeout(async () => {
+            try {
+                const currentSessionId = await this.redis.get(userTimeoutKey)
+
+                if (currentSessionId !== sessionId) {
+                    return
+                }
+
+                const stillInQueue = await this.redis.zscore(queueKey, userId)
+
+                if (stillInQueue !== null) {
+                    await this.redis.pipeline()
+                        .zrem(queueKey, userId)
+                        .del(userMatchmakingKey)
+                        .del(userTimeoutKey)
+                        .exec()
+
+                    await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.MATCHMAKING_TIMEOUT, { userId })
+                }
+            } catch (error) {
+                console.log('Error in matchmaking timeout handler: ', error)
+            }
+        }, this.MATCH_MAKING_TIMEOUT)
+    }
+
     async matchmakingCancel(client: IMatchmakingSocketCustom) {
         try {
             const { userId } = client.data.user
 
             const userMatchmakingKey = this.getUserMatchmakingKey(userId)
+            const userTimeoutKey = this.getUserMatchmakingTimeoutKey(userId)
             const matchmakingInfo = await this.redis.hgetall(userMatchmakingKey)
 
             const { boardSize, winCondition } = matchmakingInfo
@@ -132,11 +200,11 @@ export class MatchmakingService {
 
             const queueKey = this.getQueueKey(+boardSize, +winCondition)
 
-            const pipeline = this.redis.pipeline()
-            pipeline.zrem(queueKey, userId)
-            pipeline.del(userMatchmakingKey)
-            await pipeline.exec()
-
+            await this.redis.pipeline()
+                .zrem(queueKey, userId)
+                .del(userMatchmakingKey)
+                .del(userTimeoutKey)
+                .exec()
         } catch (error) {
             if (error instanceof WsException) {
                 throw error
