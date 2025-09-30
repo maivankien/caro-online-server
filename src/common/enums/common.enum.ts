@@ -8,6 +8,7 @@ export enum RoomStatusEnum {
 }
 
 export enum RoomTypeEnum {
+    CUSTOM = 'custom',
     MATCHMAKING = 'matchmaking',
 }
 

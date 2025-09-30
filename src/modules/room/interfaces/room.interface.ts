@@ -1,4 +1,4 @@
-import { RoomStatusEnum } from "@/common/enums/common.enum"
+import { RoomStatusEnum, RoomTypeEnum } from "@/common/enums/common.enum"
 
 export interface IRoomResponse {
     id: string
@@ -7,6 +7,7 @@ export interface IRoomResponse {
         id: string
         name: string
     }
+    type: RoomTypeEnum
     playerIds: string[]
     status: RoomStatusEnum
     hasPassword: boolean
@@ -19,6 +20,7 @@ export interface IRoomFormat {
     id: string
     name: string
     host: string
+    type: RoomTypeEnum
     playerIds: string
     status: RoomStatusEnum
     password: string | null

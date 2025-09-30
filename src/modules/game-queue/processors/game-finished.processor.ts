@@ -50,8 +50,9 @@ export class GameFinishedProcessor extends WorkerHost {
 
         await this.roomService.createRoomHistory({
             id: roomId,
-            name: roomDetail.name,
-            hostId: roomDetail.host.id,
+            type: roomDetail.type,
+            name: roomDetail?.name,
+            hostId: roomDetail?.host?.id,
             playerIds: roomDetail.playerIds,
             boardSize: roomDetail.boardSize,
             winCondition: roomDetail.winCondition,
