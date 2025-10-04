@@ -1,9 +1,10 @@
 import { Socket } from 'socket.io'
-import { PlayerEnum, PlayerWinnerEnum } from "@/common/enums/common.enum"
+import { PlayerEnum, PlayerWinnerEnum, RoomTypeEnum } from "@/common/enums/common.enum"
 
 
 export interface IGameState {
     id: string
+    roomType: RoomTypeEnum
     board: (PlayerEnum | null)[][]
     currentPlayer: PlayerEnum
     isGameActive: boolean

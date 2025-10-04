@@ -5,6 +5,7 @@ import {
     IRoomResponseDto,
     IRoomListResponseDto,
     IJoinRoomResponseDto,
+    CreateRoomWithAiDto,
 } from './dto/room.dto';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { IAuthUser } from '@modules/auth/interfaces/auth.interface';
@@ -40,6 +41,29 @@ export class RoomController {
         @Body() createRoomDto: CreateRoomDto,
     ): Promise<IRoomResponse> {
         return this.roomService.createRoom(user.userId, createRoomDto)
+    }
+
+    @Post('ai')
+    @ApiOperation({ summary: 'Create a new room with AI' })
+    @ApiBody({ type: CreateRoomWithAiDto })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Room created successfully',
+        type: IRoomResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Bad request - Invalid input data',
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid or missing token',
+    })
+    async createRoomWithAi(
+        @CurrentUser() user: IAuthUser,
+        @Body() createRoomDto: CreateRoomWithAiDto,
+    ): Promise<IRoomResponse> {
+        return this.roomService.createRoomWithAi(user.userId, createRoomDto)
     }
 
     @Post('join')

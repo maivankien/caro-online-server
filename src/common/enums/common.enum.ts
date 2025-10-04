@@ -10,6 +10,7 @@ export enum RoomStatusEnum {
 export enum RoomTypeEnum {
     CUSTOM = 'custom',
     MATCHMAKING = 'matchmaking',
+    AI = 'ai',
 }
 
 export enum PlayerWinnerEnum {

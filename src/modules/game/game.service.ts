@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { Injectable } from '@nestjs/common'
 import { EVENT_EMITTER_CONSTANTS } from '@/common/constants/event.constants'
-import { PlayerEnum, PlayerWinnerEnum, RoomStatusEnum } from '@/common/enums/common.enum'
+import { PlayerEnum, PlayerWinnerEnum, RoomStatusEnum, RoomTypeEnum } from '@/common/enums/common.enum'
 import {
     IGameState,
     IGameMove,
@@ -16,18 +16,22 @@ import { WsException } from '@nestjs/websockets'
 import { RoomRedisService } from '@modules/room/services/room-redis.service'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { LockService } from '@common/services/lock.service'
+import { AiService } from '@modules/ai/ai.service'
 
 @Injectable()
 export class GameService {
-    private readonly COUNTDOWN_INTERVAL = 1000 // 1 second
+    private readonly COUNTDOWN_INTERVAL = 800 // 0.8 second
     private readonly DEFAULT_COUNTDOWN = 3
-    private readonly DELAY_START_GAME = 500
+    private readonly DELAY_START_GAME = 200
     private readonly DEFAULT_START_PLAYER = PlayerEnum.X
+    private readonly AI_PLAYER_ID = 'AI_PLAYER'
+    private readonly AI_MOVE_DELAY = 800 // 0.8 second delay for AI move
 
     constructor(
         private readonly eventEmitter: EventEmitter2,
         private readonly roomRedisService: RoomRedisService,
         private readonly lockService: LockService,
+        private readonly aiService: AiService,
     ) { }
 
     async setPlayerReady(roomId: string, userId: string): Promise<void> {
@@ -41,11 +45,18 @@ export class GameService {
         }
 
         try {
-            const [status, playerIdsRaw, playerXId, playerOId] = await this.roomRedisService.getRoomData(roomId, [
+            const [
+                status,
+                playerIdsRaw,
+                playerXId,
+                playerOId,
+                roomType,
+            ] = await this.roomRedisService.getRoomData(roomId, [
                 'status',
                 'playerIds',
                 'playerXId',
                 'playerOId',
+                'type',
             ])
 
             if (status !== RoomStatusEnum.WAITING_READY) {
@@ -55,20 +66,31 @@ export class GameService {
             const playerIds = JSON.parse(playerIdsRaw)
 
             if (!playerXId || !playerOId) {
-                await this.assignPlayers(roomId, playerIds)
+                await this.assignPlayers(roomId, roomType, playerIds)
             }
 
             await this.roomRedisService.setPlayerReady(roomId, userId, true)
 
-            const readyStatus = await this.getPlayersReadyStatus(roomId)
-
-            if (readyStatus.bothReady) {
+            // For AI rooms, immediately start game when human player is ready
+            if (roomType === RoomTypeEnum.AI) {
                 const gameState = await this.getGameState(roomId)
-
                 if (!gameState) {
                     setTimeout(async () => {
                         await this.startGameCountdown(roomId)
                     }, this.DELAY_START_GAME)
+                }
+            } else {
+                // For regular rooms, wait for both players to be ready
+                const readyStatus = await this.getPlayersReadyStatus(roomId)
+
+                if (readyStatus.bothReady) {
+                    const gameState = await this.getGameState(roomId)
+
+                    if (!gameState) {
+                        setTimeout(async () => {
+                            await this.startGameCountdown(roomId)
+                        }, this.DELAY_START_GAME)
+                    }
                 }
             }
         } finally {
@@ -113,7 +135,25 @@ export class GameService {
         }, this.COUNTDOWN_INTERVAL)
     }
 
-    private async assignPlayers(roomId: string, playerIds: string[]): Promise<void> {
+    private async assignPlayers(roomId: string, roomType: RoomTypeEnum, playerIds: string[]): Promise<void> {
+        // For AI room, random assignment: human can be X or O
+        if (roomType === RoomTypeEnum.AI) {
+            const humanPlayerId = playerIds[0]
+            const randomIndex = Math.floor(Math.random() * 2)
+
+            const roomKey = this.roomRedisService.getRoomKey(roomId)
+
+            const playerXId = randomIndex === 0 ? humanPlayerId : this.AI_PLAYER_ID
+            const playerOId = randomIndex === 0 ? this.AI_PLAYER_ID : humanPlayerId
+
+            await this.roomRedisService.executeRoomMulti((multi) => {
+                multi.hset(roomKey, 'playerXId', playerXId)
+                multi.hset(roomKey, 'playerOId', playerOId)
+            })
+            return
+        }
+
+        // For regular room, random assignment: human can be X or O
         const randomIndex = Math.floor(Math.random() * 2)
         const playerXId = playerIds[randomIndex]
         const playerOId = playerIds[1 - randomIndex]
@@ -128,16 +168,18 @@ export class GameService {
         await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.PLAYING)
 
         const [
+            roomType,
             boardSizeStr,
             winConditionStr,
             playerXId,
-            playerOId
+            playerOId,
         ] =
             await this.roomRedisService.getRoomData(roomId, [
+                'type',
                 'boardSize',
                 'winCondition',
                 'playerXId',
-                'playerOId'
+                'playerOId',
             ])
 
         const size = +boardSizeStr
@@ -145,6 +187,7 @@ export class GameService {
 
         const gameState: IGameState = {
             id: uuidv4(),
+            roomType: roomType,
             playerXId: playerXId,
             playerOId: playerOId,
             board: Array(size).fill(null).map(() => Array(size).fill(null)),
@@ -165,6 +208,11 @@ export class GameService {
                 playerOId: playerOId,
             },
         })
+
+        // For AI rooms, if AI goes first, make the first move
+        if (roomType === RoomTypeEnum.AI) {
+            await this.handleAiMove(roomId, gameState)
+        }
     }
 
     private getPlayerSymbol(userId: string, gameState: IGameState): PlayerEnum {
@@ -173,6 +221,37 @@ export class GameService {
         } else if (userId === gameState.playerOId) {
             return PlayerEnum.O
         }
+    }
+
+    private async makeAiMove(roomId: string, gameState: IGameState): Promise<void> {
+        const aiSymbol = gameState.currentPlayer
+        const aiPosition = this.aiService.bestMove(gameState.board, aiSymbol)
+
+        const aiMove: IMakeMoveDto = {
+            row: aiPosition.row,
+            col: aiPosition.col
+        }
+
+        await this.makeMove(this.AI_PLAYER_ID, roomId, aiMove)
+    }
+
+    private isAiTurn(gameState: IGameState): boolean {
+        return (gameState.currentPlayer === PlayerEnum.X && gameState.playerXId === this.AI_PLAYER_ID) ||
+            (gameState.currentPlayer === PlayerEnum.O && gameState.playerOId === this.AI_PLAYER_ID)
+    }
+
+    private async handleAiMove(roomId: string, gameState: IGameState): Promise<void> {
+        if (!this.isAiTurn(gameState)) {
+            return
+        }
+
+        setTimeout(async () => {
+            const currentGameState = await this.getGameState(roomId)
+
+            if (currentGameState?.isGameActive && this.isAiTurn(currentGameState)) {
+                await this.makeAiMove(roomId, currentGameState)
+            }
+        }, this.AI_MOVE_DELAY)
     }
 
     async makeMove(userId: string, roomId: string, makeMoveDto: IMakeMoveDto): Promise<void> {
@@ -249,6 +328,10 @@ export class GameService {
             move,
             gameState,
         })
+
+        if (gameState.roomType === RoomTypeEnum.AI && gameState.isGameActive) {
+            await this.handleAiMove(roomId, gameState)
+        }
     }
 
     async getGameStateForPlayer(roomId: string): Promise<IGameStateSyncPayload> {
@@ -371,8 +454,8 @@ export class GameService {
         return await this.roomRedisService.isRoomPlayer(roomId, userId)
     }
 
-    async acceptRematchRequest(roomId: string, playerIds: string[]) {
-        await this.assignPlayers(roomId, playerIds)
+    async acceptRematchRequest(roomId: string, roomType: RoomTypeEnum, playerIds: string[]) {
+        await this.assignPlayers(roomId, roomType, playerIds)
 
         await this.startGame(roomId)
     }
@@ -395,17 +478,23 @@ export class GameService {
                 status,
                 playerIdsRaw,
                 rematchRequester,
-            ] = await this.roomRedisService.getRoomData(roomId, ['status', 'playerIds', 'rematchRequester'])
+                roomType,
+            ] = await this.roomRedisService.getRoomData(roomId, ['status', 'playerIds', 'rematchRequester', 'type'])
 
             if (status !== RoomStatusEnum.FINISHED && status !== RoomStatusEnum.WAITING_REMATCH) {
                 throw new WsException('Room is not finished')
+            }
+
+            // For AI rooms, immediately start rematch
+            if (roomType === RoomTypeEnum.AI) {
+                return await this.acceptRematchRequest(roomId, roomType, JSON.parse(playerIdsRaw))
             }
 
             if (
                 status === RoomStatusEnum.WAITING_REMATCH
                 && rematchRequester && rematchRequester !== userId
             ) {
-                return await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
+                return await this.acceptRematchRequest(roomId, roomType, JSON.parse(playerIdsRaw))
             }
 
             await this.roomRedisService.executeRoomMulti((multi) => {
@@ -426,14 +515,19 @@ export class GameService {
         const { roomId, user } = data
         const { userId } = user
 
-        const [status, playerIdsRaw, rematchRequester] = await this.roomRedisService.getRoomData(roomId, [
+        const [status, playerIdsRaw, rematchRequester, roomType] = await this.roomRedisService.getRoomData(roomId, [
             'status',
             'playerIds',
-            'rematchRequester'
+            'rematchRequester',
+            'type'
         ])
-    
+
         if (status !== RoomStatusEnum.WAITING_REMATCH) {
             throw new WsException('Room is not waiting for rematch')
+        }
+
+        if (roomType === RoomTypeEnum.AI) {
+            throw new WsException('AI rooms do not require manual rematch acceptance')
         }
 
         if (rematchRequester === userId) {
@@ -445,7 +539,7 @@ export class GameService {
             user,
         })
 
-        await this.acceptRematchRequest(roomId, JSON.parse(playerIdsRaw))
+        await this.acceptRematchRequest(roomId, roomType, JSON.parse(playerIdsRaw))
     }
 
     async declineRematch(data: ISocketData): Promise<void> {

@@ -44,6 +44,21 @@ export class CreateRoomDto {
     winCondition?: number
 }
 
+
+export class CreateRoomWithAiDto {
+    @ApiPropertyOptional({
+        description: 'Board size (5-20)',
+        example: 15,
+        minimum: 5,
+        maximum: 20,
+    })
+    @IsOptional()
+    @IsNumber()
+    @Min(5)
+    @Max(20)
+    boardSize?: number
+}
+
 export class JoinRoomDto {
     @ApiProperty({
         description: 'Room ID to join',

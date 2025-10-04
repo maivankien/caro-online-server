@@ -1,5 +1,6 @@
 import {
     CreateRoomDto,
+    CreateRoomWithAiDto,
     JoinRoomDto,
 } from './dto/room.dto';
 import { Redis } from 'ioredis';
@@ -93,6 +94,41 @@ export class RoomService {
             multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
             multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), hostId)
             multi.zadd(this.ROOMS_STATUS_WAITING_KEY, now.getTime(), roomId)
+        })
+
+        return this.formatRoomResponse(roomData)
+    }
+
+    async createRoomWithAi(hostId: string, createRoomDto: CreateRoomWithAiDto): Promise<IRoomResponse> {
+        const host = await this.userService.findById(hostId, {
+            id: true,
+            name: true,
+        })
+
+        if (!host) {
+            throw new UnauthorizedException('User not found')
+        }
+
+        const roomId = uuidv4()
+        const now = new Date()
+
+        const roomData = {
+            id: roomId,
+            host: JSON.stringify({
+                id: hostId,
+                name: host.name,
+            }),
+            createdAt: now.getTime(),
+            type: RoomTypeEnum.AI,
+            status: RoomStatusEnum.WAITING_READY,
+            playerIds: JSON.stringify([hostId]),
+            winCondition: DEFAULT_WIN_CONDITION,
+            boardSize: createRoomDto.boardSize || DEFAULT_BOARD_SIZE,
+        }
+
+        await this.roomRedisService.executeRoomMulti((multi) => {
+            multi.hmset(this.roomRedisService.getRoomKey(roomId), roomData)
+            multi.sadd(this.roomRedisService.getRoomPlayersKey(roomId), hostId)
         })
 
         return this.formatRoomResponse(roomData)
