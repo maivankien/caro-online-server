@@ -1,7 +1,7 @@
 import { AuthService } from './auth.service';
 import { CreateUserGuestDto } from '@modules/user/dto/user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CurrentUser } from './decorators/current-user.decorator';
+import { AccessToken, CurrentUser } from './decorators/current-user.decorator';
 import { IAuthUser, ITokenResponse } from './interfaces/auth.interface';
 import { Controller, Post, Body, Get, UseGuards, HttpStatus } from '@nestjs/common';
 import { ResponseMessage } from '@common/decorators/message.decorator';
@@ -32,20 +32,27 @@ export class AuthController {
         return await this.authService.createGuestUserWithToken(createUserDto)
     }
 
-    @Get('profile')
-    @ApiOperation({ summary: 'Get current user profile' })
+    @Get('verify')
+    @ApiOperation({ summary: 'Verify user token' })
     @ApiResponse({
         status: HttpStatus.OK,
-        description: 'User profile retrieved successfully',
+        description: 'User token verified successfully',
         type: IAuthUserDto,
     })
     @ApiResponse({
         status: HttpStatus.UNAUTHORIZED,
-        description: 'Unauthorized - Invalid or missing token',
+        description: 'Unauthorized - Invalid token',
     })
     @UseGuards(JwtAuthGuard)
-    @ResponseMessage('User profile retrieved successfully')
-    getProfile(@CurrentUser() user: IAuthUser): IAuthUser {
-        return user
+    @ResponseMessage('User token verified successfully')
+    verifyToken(@CurrentUser() user: IAuthUser, @AccessToken() accessToken: string): ITokenResponse {
+        return {
+            user: {
+                id: user.userId,
+                name: user.name,
+                isGuest: user.isGuest,
+            },
+            token: accessToken,
+        }
     }
 }
