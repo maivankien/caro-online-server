@@ -53,18 +53,32 @@ export class UserService {
         }, {})
     }
 
+    async getUserProfile(id: string): Promise<Partial<User>> {
+        return await this.userRepository.findOne({
+            where: { id }, select: {
+                id: true,
+                name: true,
+                isGuest: true,
+                elo: true,
+                totalGames: true,
+                wins: true,
+                losses: true,
+            }
+        })
+    }
+
     async updateEloAndStats(id: string, elo: number, isWinner: boolean, isDraw: boolean = false) {
         const updateData: ObjectLiteral = {
             elo,
             totalGames: () => 'total_games + 1'
         }
 
-        if (isDraw) {
-            updateData.draws = () => 'draws + 1'
-        } else if (isWinner) {
-            updateData.wins = () => 'wins + 1'
-        } else {
-            updateData.losses = () => 'losses + 1'
+        if (!isDraw) {
+            if (isWinner) {
+                updateData.wins = () => 'wins + 1'
+            } else {
+                updateData.losses = () => 'losses + 1'
+            }
         }
 
         await this.userRepository

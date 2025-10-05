@@ -7,11 +7,16 @@ import { Controller, Post, Body, Get, UseGuards, HttpStatus } from '@nestjs/comm
 import { ResponseMessage } from '@common/decorators/message.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { ITokenResponseDto, IAuthUserDto } from './dto/auth.dto';
+import { UserService } from '@modules/user/user.service';
+import { User } from '../user/entities/user.entity';
 
 @Controller()
 @ApiTags('Authentication')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+    constructor(
+        private readonly authService: AuthService,
+        private readonly userService: UserService,
+    ) { }
 
     @Post('guest')
     @ApiOperation({ summary: 'Create guest user and authenticate' })
@@ -54,5 +59,18 @@ export class AuthController {
             },
             token: accessToken,
         }
+    }
+
+    @Get('profile')
+    @ApiOperation({ summary: 'Get current user profile' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'User profile retrieved successfully',
+        type: IAuthUserDto,
+    })
+    @UseGuards(JwtAuthGuard)
+    @ResponseMessage('User profile retrieved successfully')
+    async getProfile(@CurrentUser() user: IAuthUser): Promise<Partial<User>> {
+        return await this.userService.getUserProfile(user.userId)
     }
 }
