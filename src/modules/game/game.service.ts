@@ -258,6 +258,20 @@ export class GameService {
         const { row, col } = makeMoveDto
 
         const gameState = await this.getGameState(roomId)
+        this.validateMoveRequest(gameState, userId, row, col)
+
+        const playerSymbol = this.getPlayerSymbol(userId, gameState)
+        const move = this.updateGameState(gameState, row, col, playerSymbol)
+
+        await this.handleGameEndConditions(roomId, gameState, playerSymbol, move)
+        await this.saveGameStateAndEmitEvents(roomId, gameState, move)
+
+        if (gameState.roomType === RoomTypeEnum.AI && gameState.isGameActive) {
+            await this.handleAiMove(roomId, gameState)
+        }
+    }
+
+    private validateMoveRequest(gameState: IGameState | null, userId: string, row: number, col: number): void {
         if (!gameState) {
             throw new WsException('Game not found')
         }
@@ -266,8 +280,7 @@ export class GameService {
             throw new WsException('Game is not active')
         }
 
-        let playerSymbol: PlayerEnum = this.getPlayerSymbol(userId, gameState)
-
+        const playerSymbol = this.getPlayerSymbol(userId, gameState)
         if (gameState.currentPlayer !== playerSymbol) {
             throw new WsException('Not your turn')
         }
@@ -279,48 +292,75 @@ export class GameService {
         if (gameState.board[row][col] !== null) {
             throw new WsException('Position already occupied')
         }
+    }
 
+    private updateGameState(gameState: IGameState, row: number, col: number, playerSymbol: PlayerEnum): IGameMove {
         gameState.moveCount++
         gameState.board[row][col] = playerSymbol
         gameState.lastMoveTime = new Date().toISOString()
         gameState.currentPlayer = playerSymbol === PlayerEnum.X ? PlayerEnum.O : PlayerEnum.X
+        gameState.lastMovePosition = { row, col }
 
-        const move: IGameMove = {
+        return {
             row,
             col,
             player: playerSymbol,
             timestamp: gameState.lastMoveTime,
         }
+    }
 
-        gameState.lastMovePosition = { row, col }
-
-        const winResult = this.checkWinCondition(gameState, row, col, playerSymbol)
+    private async handleGameEndConditions(
+        roomId: string,
+        gameState: IGameState,
+        playerSymbol: PlayerEnum,
+        move: IGameMove
+    ): Promise<void> {
+        const winResult = this.checkWinCondition(gameState, move.row, move.col, playerSymbol)
 
         if (winResult.hasWon) {
-            gameState.isGameActive = false
-            gameState.finishedAt = new Date().toISOString()
-
-            await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
-
-            await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
-                roomId,
-                winner: playerSymbol,
-                winningLine: winResult.winningLine,
-                gameState,
-            })
-        } else if (gameState.moveCount === gameState.board.length * gameState.board[0].length) {
-            gameState.isGameActive = false
-            gameState.finishedAt = new Date().toISOString()
-
-            await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
-
-            await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
-                roomId,
-                gameState,
-                winner: PlayerWinnerEnum.DRAW,
-            })
+            await this.endGameWithWinner(roomId, gameState, playerSymbol, winResult.winningLine)
+        } else if (this.isBoardFull(gameState)) {
+            await this.endGameWithDraw(roomId, gameState)
         }
+    }
 
+    private async endGameWithWinner(
+        roomId: string,
+        gameState: IGameState,
+        winner: PlayerEnum,
+        winningLine?: IPosition[]
+    ): Promise<void> {
+        gameState.isGameActive = false
+        gameState.finishedAt = new Date().toISOString()
+
+        await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
+
+        await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
+            roomId,
+            winner,
+            winningLine,
+            gameState,
+        })
+    }
+
+    private async endGameWithDraw(roomId: string, gameState: IGameState): Promise<void> {
+        gameState.isGameActive = false
+        gameState.finishedAt = new Date().toISOString()
+
+        await this.roomRedisService.setRoomField(roomId, 'status', RoomStatusEnum.FINISHED)
+
+        await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_FINISHED, {
+            roomId,
+            gameState,
+            winner: PlayerWinnerEnum.DRAW,
+        })
+    }
+
+    private isBoardFull(gameState: IGameState): boolean {
+        return gameState.moveCount === gameState.board.length * gameState.board[0].length
+    }
+
+    private async saveGameStateAndEmitEvents(roomId: string, gameState: IGameState, move: IGameMove): Promise<void> {
         await this.roomRedisService.setRoomField(roomId, 'gameState', JSON.stringify(gameState))
 
         await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.GAME_MOVE_MADE, {
@@ -328,10 +368,6 @@ export class GameService {
             move,
             gameState,
         })
-
-        if (gameState.roomType === RoomTypeEnum.AI && gameState.isGameActive) {
-            await this.handleAiMove(roomId, gameState)
-        }
     }
 
     async getGameStateForPlayer(roomId: string): Promise<IGameStateSyncPayload> {
