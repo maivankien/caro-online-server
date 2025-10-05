@@ -160,27 +160,26 @@ export class MatchmakingService {
         userMatchmakingKey: string,
     }) {
         setTimeout(async () => {
-            try {
-                const currentSessionId = await this.redis.get(userTimeoutKey)
+            const currentSessionId = await this.redis.get(userTimeoutKey)
 
-                if (currentSessionId !== sessionId) {
-                    return
-                }
-
-                const stillInQueue = await this.redis.zscore(queueKey, userId)
-
-                if (stillInQueue !== null) {
-                    await this.redis.pipeline()
-                        .zrem(queueKey, userId)
-                        .del(userMatchmakingKey)
-                        .del(userTimeoutKey)
-                        .exec()
-
-                    await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.MATCHMAKING_TIMEOUT, { userId })
-                }
-            } catch (error) {
-                console.log('Error in matchmaking timeout handler: ', error)
+            if (currentSessionId !== sessionId) {
+                return
             }
+
+            const stillInQueue = await this.redis.zscore(queueKey, userId)
+
+            if (!stillInQueue) {
+                return
+            }
+
+            await this.redis.pipeline()
+                .zrem(queueKey, userId)
+                .del(userMatchmakingKey)
+                .del(userTimeoutKey)
+                .exec()
+
+            await this.eventEmitter.emitAsync(EVENT_EMITTER_CONSTANTS.MATCHMAKING_TIMEOUT, { userId })
+
         }, this.MATCH_MAKING_TIMEOUT)
     }
 
