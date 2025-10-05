@@ -1,5 +1,5 @@
 import { AuthService } from './auth.service';
-import { CreateUserGuestDto } from '@modules/user/dto/user.dto';
+import { CreateUserGuestDto, CreateUserDto, LoginUserDto } from '@modules/user/dto/user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AccessToken, CurrentUser } from './decorators/current-user.decorator';
 import { IAuthUser, ITokenResponse } from './interfaces/auth.interface';
@@ -59,6 +59,52 @@ export class AuthController {
             },
             token: accessToken,
         }
+    }
+
+    @Post('register')
+    @ApiOperation({ summary: 'Register new user with email and password' })
+    @ApiBody({ type: CreateUserDto })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'User registered and authenticated successfully',
+        type: ITokenResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.CONFLICT,
+        description: 'Email already exists',
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Bad request - Invalid input data',
+    })
+    @ResponseMessage('User registered and authenticated successfully')
+    async register(
+        @Body() createUserDto: CreateUserDto,
+    ): Promise<ITokenResponse> {
+        return await this.authService.createUserWithToken(createUserDto)
+    }
+
+    @Post('login')
+    @ApiOperation({ summary: 'Login user with email and password' })
+    @ApiBody({ type: LoginUserDto })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'User logged in successfully',
+        type: ITokenResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.UNAUTHORIZED,
+        description: 'Invalid email or password',
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Bad request - Invalid input data',
+    })
+    @ResponseMessage('User logged in successfully')
+    async login(
+        @Body() loginUserDto: LoginUserDto,
+    ): Promise<ITokenResponse> {
+        return await this.authService.loginUser(loginUserDto)
     }
 
     @Get('profile')
