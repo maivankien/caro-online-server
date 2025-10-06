@@ -301,16 +301,3 @@ const timeout = 60000       // Matchmaking timeout (ms)
 - Atomic operations prevent data corruption
 - Automatic cleanup on disconnect/timeout
 
-## Monitoring and Debugging
-
-### Key Metrics
-- Queue length per game configuration
-- Average matching time
-- Timeout rate
-- Successful match rate
-
-### Debug Information
-- ELO range progression
-- Redis operation logs
-- Event emission tracking
-- WebSocket connection status
