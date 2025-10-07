@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+    # MySQL Database
+    mysql:
+        image: mysql:8.0
+        container_name: caro-mysql
+        restart: unless-stopped
+        environment:
+            MYSQL_ROOT_PASSWORD: 123456
+            MYSQL_DATABASE: caro_online
+            MYSQL_USER: caro_user
+            MYSQL_PASSWORD: caro_password
+        ports:
+            - "3307:3306"
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+        networks:
+            - caro-network
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            timeout: 20s
+            retries: 10
+
+    # Redis Cache
+    redis:
+        image: redis:7-alpine
+        container_name: caro-redis
+        restart: unless-stopped
+        ports:
+            - "6379:6379"
+        volumes:
+            - ./data/redis:/data
+        networks:
+            - caro-network
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            timeout: 3s
+            retries: 5
+
+    # NestJS Application
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: caro-app
+        restart: unless-stopped
+        ports:
+            - "3000:3000"
+        env_file:
+            - .env
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        networks:
+            - caro-network
+
+networks:
+    caro-network:
+        driver: bridge

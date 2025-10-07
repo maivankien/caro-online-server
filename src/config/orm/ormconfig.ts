@@ -11,8 +11,8 @@ export default new DataSource({
     username: process.env.MYSQL_USERNAME,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE,
-    entities: [join(__dirname, '..', '..', '**', '*.entity.ts')],
-    migrations: [join(__dirname, '..', '..', 'migrations', '*.ts')],
+    entities: [join(__dirname, '..', '..', '**', '*.entity.js')],
+    migrations: [join(__dirname, '..', '..', 'migrations', '*.js')],
     synchronize: false,
     logging: true,
 })
